@@ -1,3 +1,6 @@
+import { Organism } from '../organisms/Organism.js';
+import { OrganismAI } from '../organisms/OrganismAI.js';
+
 /**
  * World - Contains all organisms and handles simulation
  * Manages game state, collisions, and interactions
@@ -7,12 +10,19 @@ export class World {
     this.width = width;
     this.height = height;
     this.organisms = [];
+    this.organismAIs = new Map(); // Map organism to AI
     this.playerOrganism = null;
     this.time = 0;
     this.isPaused = false;
 
     // World resources
     this.foodParticles = [];
+
+    // Environment parameters
+    this.foodSpawnRate = 0.5;
+    this.temperature = 1.0;
+    this.mutationRate = 0.05;
+    this.initialPopulation = 10;
   }
 
   /**
@@ -26,7 +36,7 @@ export class World {
   }
 
   /**
-   * Add organism to world
+   * Add organism to world with AI
    */
   addOrganism(organism) {
     // Keep organism within bounds
@@ -34,6 +44,11 @@ export class World {
     organism.y = Math.max(organism.phenotype.size, Math.min(this.height - organism.phenotype.size, organism.y));
 
     this.organisms.push(organism);
+
+    // Create AI for organism if not player
+    if (!organism.isPlayer) {
+      this.organismAIs.set(organism, new OrganismAI(organism, this));
+    }
   }
 
   /**
@@ -43,6 +58,7 @@ export class World {
     const index = this.organisms.indexOf(organism);
     if (index > -1) {
       this.organisms.splice(index, 1);
+      this.organismAIs.delete(organism);
     }
   }
 
@@ -80,7 +96,21 @@ export class World {
 
     // Update all organisms
     for (const organism of this.organisms) {
-      organism.update(deltaTime);
+      // Apply temperature effect to metabolism
+      const tempModifiedDelta = deltaTime * this.temperature;
+      organism.update(tempModifiedDelta);
+
+      // Update AI behavior
+      const ai = this.organismAIs.get(organism);
+      if (ai) {
+        ai.update(deltaTime);
+
+        // Try to reproduce
+        const offspring = ai.tryReproduce();
+        if (offspring) {
+          this.addOrganism(offspring);
+        }
+      }
     }
 
     // Handle collisions
@@ -95,9 +125,10 @@ export class World {
     // Keep organisms in bounds
     this.keepOrganismsInBounds();
 
-    // Spawn food periodically - very slow rate
-    // Cap max food at 8 to prevent buildup
-    if (this.foodParticles.length < 8 && Math.random() < 0.001 * deltaTime) {
+    // Spawn food based on food spawn rate
+    const maxFood = Math.floor(10 + this.foodSpawnRate * 20);
+    const spawnChance = 0.001 * deltaTime * this.foodSpawnRate;
+    if (this.foodParticles.length < maxFood && Math.random() < spawnChance) {
       this.spawnRandomFood(1);
     }
   }
@@ -122,30 +153,73 @@ export class World {
    * Resolve collision between two organisms
    */
   resolveCollision(org1, org2) {
-    // Simple combat: larger/more toxic organism damages smaller one
+    // Check if parent-child relationship exists
+    if (org1.isParentChildRelation(org2)) {
+      // Just push apart, no combat
+      this.pushOrganismsApart(org1, org2);
+      return;
+    }
+
+    // Get AI states
+    const ai1 = this.organismAIs.get(org1);
+    const ai2 = this.organismAIs.get(org2);
+    const org1Attacking = ai1 && ai1.state === 'attacking';
+    const org2Attacking = ai2 && ai2.state === 'attacking';
+
+    // Only apply combat if at least one is in attacking state
+    if (!org1Attacking && !org2Attacking) {
+      // Just push apart, no combat
+      this.pushOrganismsApart(org1, org2);
+      return;
+    }
+
+    // Combat: larger/more toxic organism damages smaller one
     const power1 = org1.phenotype.size + org1.phenotype.toxicity * 10;
     const power2 = org2.phenotype.size + org2.phenotype.toxicity * 10;
 
-    if (power1 > power2) {
+    // Only the attacker deals damage
+    if (org1Attacking && power1 > power2) {
       org2.takeDamage(5);
       if (!org2.isAlive) {
         // Winner consumes loser
         org1.consume(org2.phenotype.size * 10);
         org1.dnaPoints += org2.phenotype.size * 0.5;
       }
-    } else if (power2 > power1) {
+    } else if (org2Attacking && power2 > power1) {
       org1.takeDamage(5);
       if (!org1.isAlive) {
         org2.consume(org1.phenotype.size * 10);
         org2.dnaPoints += org1.phenotype.size * 0.5;
       }
-    } else {
-      // Equal power - both take damage
-      org1.takeDamage(3);
-      org2.takeDamage(3);
+    } else if (org1Attacking && org2Attacking) {
+      // Both attacking - mutual combat
+      if (power1 > power2) {
+        org2.takeDamage(5);
+        if (!org2.isAlive) {
+          org1.consume(org2.phenotype.size * 10);
+          org1.dnaPoints += org2.phenotype.size * 0.5;
+        }
+      } else if (power2 > power1) {
+        org1.takeDamage(5);
+        if (!org1.isAlive) {
+          org2.consume(org1.phenotype.size * 10);
+          org2.dnaPoints += org1.phenotype.size * 0.5;
+        }
+      } else {
+        // Equal power - both take damage
+        org1.takeDamage(3);
+        org2.takeDamage(3);
+      }
     }
 
-    // Push organisms apart to prevent overlap
+    // Push organisms apart
+    this.pushOrganismsApart(org1, org2);
+  }
+
+  /**
+   * Push two organisms apart to prevent overlap
+   */
+  pushOrganismsApart(org1, org2) {
     const dx = org2.x - org1.x;
     const dy = org2.y - org1.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
@@ -244,12 +318,39 @@ export class World {
   }
 
   /**
-   * Spawn AI organisms
+   * Spawn initial population
    */
-  spawnAIOrganisms(count = 5) {
-    // Import is async, so we'll handle this in the game manager
-    // For now, just a placeholder
-    return count;
+  spawnInitialPopulation() {
+    this.clear();
+
+    for (let i = 0; i < this.initialPopulation; i++) {
+      const x = Math.random() * this.width;
+      const y = Math.random() * this.height;
+      const organism = new Organism(x, y);
+      organism.energy = 50 + Math.random() * 50; // Random initial energy
+      this.addOrganism(organism);
+    }
+
+    // Spawn some initial food
+    this.spawnRandomFood(Math.floor(this.initialPopulation * 0.5));
+  }
+
+  /**
+   * Update environment parameters
+   */
+  setEnvironmentParams(params) {
+    if (params.foodSpawnRate !== undefined) {
+      this.foodSpawnRate = params.foodSpawnRate;
+    }
+    if (params.temperature !== undefined) {
+      this.temperature = params.temperature;
+    }
+    if (params.mutationRate !== undefined) {
+      this.mutationRate = params.mutationRate;
+    }
+    if (params.initialPopulation !== undefined) {
+      this.initialPopulation = params.initialPopulation;
+    }
   }
 
   /**
@@ -260,11 +361,14 @@ export class World {
   }
 
   /**
-   * Clear all organisms except player
+   * Clear all organisms and reset world
    */
   clear() {
-    this.organisms = this.playerOrganism ? [this.playerOrganism] : [];
+    this.organisms = [];
+    this.organismAIs.clear();
     this.foodParticles = [];
+    this.time = 0;
+    this.playerOrganism = null;
   }
 
   /**

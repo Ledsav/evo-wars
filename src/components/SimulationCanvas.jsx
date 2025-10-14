@@ -4,7 +4,7 @@ import { OrganismRenderer } from '../rendering/OrganismRenderer';
 /**
  * SimulationCanvas - Renders the game world
  */
-export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600 }, ref) => {
+export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, highlightedSpeciesId = null }, ref) => {
   const canvasRef = useRef(null);
 
   // Expose render function to parent component
@@ -14,6 +14,9 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600 }
       if (!canvas) return;
 
       const ctx = canvas.getContext('2d');
+
+      // Clear canvas
+      ctx.clearRect(0, 0, width, height);
 
       // Clear and render background
       OrganismRenderer.renderBackground(ctx, width, height);
@@ -25,10 +28,12 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600 }
 
       // Render organisms
       for (const organism of world.organisms) {
-        OrganismRenderer.render(ctx, organism);
+        const isHighlighted = highlightedSpeciesId !== null &&
+                            organism.getSpeciesId() === highlightedSpeciesId;
+        OrganismRenderer.render(ctx, organism, isHighlighted);
       }
     }
-  }), [world, width, height]);
+  }), [world, width, height, highlightedSpeciesId]);
 
   // Initial render
   useEffect(() => {
@@ -50,7 +55,11 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600 }
         border: '2px solid #4a5568',
         borderRadius: '8px',
         boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
-        backgroundColor: '#0a1929'
+        backgroundColor: '#0a1929',
+        display: 'block',
+        maxWidth: '100%',
+        maxHeight: '100%',
+        objectFit: 'contain'
       }}
     />
   );

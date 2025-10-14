@@ -7,7 +7,7 @@ import { Genome } from '../genetics/Genome.js';
 export class Organism {
   static nextId = 1;
 
-  constructor(x, y, genome = null) {
+  constructor(x, y, genome = null, parentId = null) {
     this.id = Organism.nextId++;
     this.genome = genome || Genome.createDefault();
 
@@ -29,6 +29,10 @@ export class Organism {
 
     // DNA points for mutations
     this.dnaPoints = 0;
+
+    // Parent tracking (for offspring protection)
+    this.parentId = parentId;
+    this.birthTime = Date.now();
 
     // Express genome to set phenotype
     this.expressGenome();
@@ -121,6 +125,19 @@ export class Organism {
       const sensoryProtein = proteins.sensory;
       phenotype.visionRange = 80 + sensoryProtein.properties.aromatic * 15;
       phenotype.detectionRadius = 40 + sensoryProtein.properties.positive * 8;
+    }
+
+    // Aggression gene
+    if (proteins.aggression) {
+      const aggressionProtein = proteins.aggression;
+      // Aggression based on charged amino acids and aromatic content
+      const aggFactor = (aggressionProtein.properties.aromatic * 2 +
+                        aggressionProtein.properties.positive) / aggressionProtein.properties.length;
+      phenotype.aggression = Math.max(0, Math.min(1, aggFactor * 0.3)); // 0-1 scale
+      phenotype.cooperativeness = 1 - phenotype.aggression; // Inverse relationship
+    } else {
+      phenotype.aggression = 0.5;
+      phenotype.cooperativeness = 0.5;
     }
 
     // Pigmentation (if gene exists)
@@ -240,21 +257,41 @@ export class Organism {
   }
 
   /**
-   * Reproduce (asexual)
+   * Reproduce (asexual) with automatic mutations
    */
-  reproduce() {
+  reproduce(mutationRate = 0.05) {
     if (!this.canReproduce()) return null;
 
     // Pay reproduction cost
     this.energy -= this.phenotype.reproductionCost;
 
-    // Clone genome with potential mutations
+    // Clone genome
     const childGenome = this.genome.clone();
+
+    // Apply random mutations based on mutation rate
+    if (Math.random() < mutationRate) {
+      const geneNames = childGenome.getGeneNames();
+      const randomGene = geneNames[Math.floor(Math.random() * geneNames.length)];
+      const gene = childGenome.getGene(randomGene);
+      const sequence = gene.dna.toString();
+
+      // Choose random mutation type (favor smaller mutations)
+      const mutationTypes = ['point', 'point', 'point', 'insertion', 'deletion']; // Weighted toward point mutations
+      const mutationType = mutationTypes[Math.floor(Math.random() * mutationTypes.length)];
+      const randomPosition = Math.floor(Math.random() * sequence.length);
+
+      try {
+        childGenome.mutateGene(randomGene, mutationType, randomPosition);
+      } catch (error) {
+        // Mutation failed, continue without it
+        console.log('Mutation failed during reproduction:', error.message);
+      }
+    }
 
     // Create offspring near parent
     const offsetX = (Math.random() - 0.5) * 30;
     const offsetY = (Math.random() - 0.5) * 30;
-    const offspring = new Organism(this.x + offsetX, this.y + offsetY, childGenome);
+    const offspring = new Organism(this.x + offsetX, this.y + offsetY, childGenome, this.id);
 
     // Give some initial energy
     offspring.energy = this.phenotype.reproductionCost * 0.3;
@@ -303,5 +340,101 @@ export class Organism {
     const dx = this.x - other.x;
     const dy = this.y - other.y;
     return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  /**
+   * Calculate genome similarity with another organism (0-1 scale)
+   * Used to determine if organisms are same species
+   */
+  getGenomeSimilarity(other) {
+    if (!other || !other.genome) return 0;
+
+    const genes1 = this.genome.getGeneNames();
+    const genes2 = other.genome.getGeneNames();
+
+    // Must have same genes to be considered
+    if (genes1.length !== genes2.length) return 0;
+
+    let totalSimilarity = 0;
+    let geneCount = 0;
+
+    for (const geneName of genes1) {
+      const gene1 = this.genome.getGene(geneName);
+      const gene2 = other.genome.getGene(geneName);
+
+      if (!gene1 || !gene2) continue;
+
+      const seq1 = gene1.dna.toString();
+      const seq2 = gene2.dna.toString();
+
+      // Calculate sequence similarity (simple matching)
+      const maxLen = Math.max(seq1.length, seq2.length);
+      const minLen = Math.min(seq1.length, seq2.length);
+      let matches = 0;
+
+      for (let i = 0; i < minLen; i++) {
+        if (seq1[i] === seq2[i]) matches++;
+      }
+
+      const geneSimilarity = matches / maxLen;
+      totalSimilarity += geneSimilarity;
+      geneCount++;
+    }
+
+    return geneCount > 0 ? totalSimilarity / geneCount : 0;
+  }
+
+  /**
+   * Check if organism is same species as another (>80% genome similarity)
+   */
+  isSameSpecies(other) {
+    return this.getGenomeSimilarity(other) > 0.8;
+  }
+
+  /**
+   * Check if this organism is parent or child of another
+   * Protection window: 10 seconds after birth
+   */
+  isParentChildRelation(other) {
+    const protectionWindow = 10000; // 10 seconds in ms
+    const timeSinceBirth = Date.now() - this.birthTime;
+    const timeSinceOtherBirth = Date.now() - other.birthTime;
+
+    // Check if this is child of other (within protection window)
+    if (this.parentId === other.id && timeSinceBirth < protectionWindow) {
+      return true;
+    }
+
+    // Check if other is child of this (within protection window)
+    if (other.parentId === this.id && timeSinceOtherBirth < protectionWindow) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Get species identifier (hash of genome structure)
+   */
+  getSpeciesId() {
+    if (this._speciesId) return this._speciesId;
+
+    // Create a simple hash based on genome structure
+    const genes = this.genome.getGeneNames().sort();
+    let hash = 0;
+
+    for (const geneName of genes) {
+      const gene = this.genome.getGene(geneName);
+      const seq = gene.dna.toString();
+
+      // Simple hash function
+      for (let i = 0; i < seq.length; i++) {
+        hash = ((hash << 5) - hash) + seq.charCodeAt(i);
+        hash = hash & hash; // Convert to 32bit integer
+      }
+    }
+
+    this._speciesId = Math.abs(hash);
+    return this._speciesId;
   }
 }

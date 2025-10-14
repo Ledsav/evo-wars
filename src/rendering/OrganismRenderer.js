@@ -6,7 +6,7 @@ export class OrganismRenderer {
   /**
    * Render a single organism
    */
-  static render(ctx, organism) {
+  static render(ctx, organism, isHighlighted = false) {
     if (!organism.isAlive) {
       return;
     }
@@ -20,6 +20,25 @@ export class OrganismRenderer {
     // Create color string
     const fillColor = `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
     const strokeColor = `hsl(${color.h}, ${color.s}%, ${color.l - 20}%)`;
+
+    // Highlight glow effect
+    if (isHighlighted) {
+      ctx.save();
+      ctx.shadowColor = `hsl(${color.h}, 100%, 70%)`;
+      ctx.shadowBlur = 20;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+
+      // Pulsing highlight ring
+      const time = Date.now() / 500;
+      const pulseSize = size + 8 + Math.sin(time) * 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, pulseSize, 0, Math.PI * 2);
+      ctx.strokeStyle = `hsl(${color.h}, 100%, 70%)`;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.restore();
+    }
 
     // Draw segments (cell-like body)
     const segmentCount = segments || 1;
@@ -85,8 +104,46 @@ export class OrganismRenderer {
 
     ctx.restore();
 
+    // Species label for highlighted organisms
+    if (isHighlighted) {
+      this.renderSpeciesLabel(ctx, organism);
+    }
+
     // Energy bar
     this.renderEnergyBar(ctx, organism);
+  }
+
+  /**
+   * Render species label above highlighted organism
+   */
+  static renderSpeciesLabel(ctx, organism) {
+    const speciesId = organism.getSpeciesId().toString().slice(0, 6);
+    const label = `Species ${speciesId}`;
+
+    ctx.save();
+    ctx.font = 'bold 12px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+
+    const x = organism.x;
+    const y = organism.y - organism.phenotype.size - 20;
+
+    // Background
+    const metrics = ctx.measureText(label);
+    const padding = 4;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(
+      x - metrics.width / 2 - padding,
+      y - 12 - padding,
+      metrics.width + padding * 2,
+      16 + padding * 2
+    );
+
+    // Text
+    ctx.fillStyle = `hsl(${organism.phenotype.color.h}, 100%, 70%)`;
+    ctx.fillText(label, x, y);
+
+    ctx.restore();
   }
 
   /**
