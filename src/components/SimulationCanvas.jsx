@@ -1,10 +1,10 @@
-import { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { OrganismRenderer } from '../rendering/OrganismRenderer';
 
 /**
  * SimulationCanvas - Renders the game world
  */
-export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, highlightedSpeciesId = null }, ref) => {
+export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, highlightedSpeciesId = null, overlays = {} }, ref) => {
   const canvasRef = useRef(null);
 
   // Expose render function to parent component
@@ -30,10 +30,10 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
       for (const organism of world.organisms) {
         const isHighlighted = highlightedSpeciesId !== null &&
                             organism.getSpeciesId() === highlightedSpeciesId;
-        OrganismRenderer.render(ctx, organism, isHighlighted);
+        OrganismRenderer.render(ctx, organism, isHighlighted, overlays || {});
       }
     }
-  }), [world, width, height, highlightedSpeciesId]);
+  }), [world, width, height, highlightedSpeciesId, overlays]);
 
   // Initial render
   useEffect(() => {

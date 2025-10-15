@@ -49,6 +49,42 @@ export class Organism {
   }
 
   /**
+   * Calculate color pattern based on pigmentation protein
+   */
+  calculateColorPattern(pigmentProtein) {
+    const { properties } = pigmentProtein;
+
+    // Determine pattern type based on amino acid distribution
+    const polarRatio = properties.polar / Math.max(1, properties.length);
+    const largeRatio = properties.large / Math.max(1, properties.length);
+    const tinyRatio = properties.tiny / Math.max(1, properties.length);
+
+    let patternType = 'solid';
+    let intensity = 0;
+
+    // Pattern selection based on protein structure
+    if (largeRatio > 0.5) {
+      patternType = 'spots';
+      intensity = Math.min(1, largeRatio * 1.5);
+    } else if (polarRatio > 0.6) {
+      patternType = 'stripes';
+      intensity = Math.min(1, polarRatio * 1.3);
+    } else if (tinyRatio > 0.4) {
+      patternType = 'gradient';
+      intensity = Math.min(1, tinyRatio * 2);
+    } else if (properties.aromatic > properties.length * 0.3) {
+      patternType = 'mottled';
+      intensity = Math.min(1, (properties.aromatic / properties.length) * 2);
+    }
+
+    return {
+      type: patternType,
+      intensity: intensity,
+      secondaryHueShift: (properties.aliphatic * 30) % 60 // Secondary color variation
+    };
+  }
+
+  /**
    * Calculate phenotype from proteins
    * This is where genes affect physical traits
    */
@@ -143,13 +179,33 @@ export class Organism {
     // Pigmentation (if gene exists)
     if (proteins.pigmentation) {
       const pigmentProtein = proteins.pigmentation;
-      const hue = (pigmentProtein.properties.positive * 60 +
-                   pigmentProtein.properties.negative * 30 +
-                   pigmentProtein.properties.aromatic * 90) % 360;
-      const saturation = Math.min(40 + pigmentProtein.properties.hydrophobic * 5, 95);
-      const lightness = Math.max(30, Math.min(70, 50 - pigmentProtein.properties.tiny * 3));
+
+      // Enhanced color calculation based on protein properties
+      // Hue: Based on charged and aromatic amino acids (0-360 degrees)
+      const hue = (pigmentProtein.properties.positive * 45 +
+                   pigmentProtein.properties.negative * 120 +
+                   pigmentProtein.properties.aromatic * 180 +
+                   pigmentProtein.properties.hydrophobic * 15) % 360;
+
+      // Saturation: Based on aromatic content and charge (30-95%)
+      const aromaticFactor = pigmentProtein.properties.aromatic / Math.max(1, pigmentProtein.properties.length);
+      const chargeFactor = (pigmentProtein.properties.positive + pigmentProtein.properties.negative) /
+                          Math.max(1, pigmentProtein.properties.length);
+      const saturation = Math.min(Math.max(30, 40 + aromaticFactor * 80 + chargeFactor * 40), 95);
+
+      // Lightness: Based on hydrophobic vs hydrophilic balance (25-75%)
+      const hydrophobicRatio = pigmentProtein.properties.hydrophobic / Math.max(1, pigmentProtein.properties.length);
+      const hydrophilicRatio = pigmentProtein.properties.hydrophilic / Math.max(1, pigmentProtein.properties.length);
+      const lightness = Math.max(25, Math.min(75, 50 + (hydrophilicRatio - hydrophobicRatio) * 50));
 
       phenotype.color = { h: hue, s: saturation, l: lightness };
+
+      // Add visual variation properties based on protein structure
+      phenotype.colorPattern = this.calculateColorPattern(pigmentProtein);
+    } else {
+      // Default color if no pigmentation gene
+      phenotype.color = { h: 180, s: 60, l: 50 };
+      phenotype.colorPattern = { type: 'solid', intensity: 0 };
     }
 
     // Structure (if gene exists)

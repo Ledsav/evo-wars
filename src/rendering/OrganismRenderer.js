@@ -6,7 +6,7 @@ export class OrganismRenderer {
   /**
    * Render a single organism
    */
-  static render(ctx, organism, isHighlighted = false) {
+  static render(ctx, organism, isHighlighted = false, overlays = {}, options = {}) {
     if (!organism.isAlive) {
       return;
     }
@@ -15,11 +15,16 @@ export class OrganismRenderer {
     ctx.translate(organism.x, organism.y);
     ctx.rotate(organism.rotation);
 
-    const { size, color, segments, toxicity, armor } = organism.phenotype;
+  const { size, color, segments, toxicity, armor, colorPattern, metabolicRate, maxSpeed } = organism.phenotype;
 
     // Create color string
     const fillColor = `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
     const strokeColor = `hsl(${color.h}, ${color.s}%, ${color.l - 20}%)`;
+
+    // Secondary color for patterns
+    const secondaryColor = colorPattern ?
+      `hsl(${(color.h + colorPattern.secondaryHueShift) % 360}, ${color.s}%, ${color.l + 10}%)` :
+      fillColor;
 
     // Highlight glow effect
     if (isHighlighted) {
@@ -38,6 +43,21 @@ export class OrganismRenderer {
       ctx.lineWidth = 3;
       ctx.stroke();
       ctx.restore();
+    }
+
+    // Optional: metabolism glow behind body
+    if (overlays.showMetabolism) {
+      const t = Date.now() / 600;
+      const pulse = 0.85 + Math.sin(t) * 0.15;
+      const glowIntensity = Math.min(1, (metabolicRate || 1) / 2);
+      const glowRadius = size * (1.4 + glowIntensity * 1.2) * pulse;
+      const grad = ctx.createRadialGradient(0, 0, size * 0.5, 0, 0, glowRadius);
+      grad.addColorStop(0, `rgba(255, 200, 120, ${0.18 + glowIntensity * 0.15})`);
+      grad.addColorStop(1, 'rgba(255, 140, 0, 0)');
+      ctx.beginPath();
+      ctx.fillStyle = grad;
+      ctx.arc(0, 0, glowRadius, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     // Draw segments (cell-like body)
@@ -73,22 +93,61 @@ export class OrganismRenderer {
       ctx.fillStyle = `hsl(${color.h}, ${color.s + 10}%, ${color.l - 15}%)`;
       ctx.fill();
 
+      // Apply color patterns based on mutation
+      if (colorPattern && colorPattern.intensity > 0.1) {
+        this.applyColorPattern(ctx, x, 0, radius, colorPattern, secondaryColor);
+      }
+
       // Armor plating
       if (armor > 0) {
         ctx.beginPath();
         ctx.arc(x, 0, radius * 1.1, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(100, 100, 100, ${armor * 0.3})`;
-        ctx.lineWidth = 2;
+        const armorAlpha = Math.min(1, Math.max(0.1, armor * 0.05));
+        ctx.strokeStyle = `rgba(100, 100, 100, ${armorAlpha})`;
+        ctx.lineWidth = 1.5 + Math.min(3, armor * 0.2);
         ctx.stroke();
       }
     }
 
-    // Toxicity indicator
+    // Toxicity indicator (dot + glow scaled by toxicity)
     if (toxicity > 0) {
+      const tox = Math.max(0, toxicity);
+      const dotRadius = 2 + Math.min(6, tox * 1.5);
+      // Glow ring
+      ctx.save();
+      ctx.globalAlpha = Math.min(0.7, 0.2 + tox * 0.15);
+      ctx.strokeStyle = '#ff00ff';
+      ctx.lineWidth = 2 + tox * 0.8;
       ctx.beginPath();
-      ctx.arc(size / 2, 0, 4, 0, Math.PI * 2);
+      ctx.arc(0, 0, size + 4 + tox * 3, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+
+      // Magenta core dot at front
+      ctx.beginPath();
+      ctx.arc(size / 2, 0, dotRadius, 0, Math.PI * 2);
       ctx.fillStyle = '#ff00ff';
       ctx.fill();
+    }
+
+    // Speed trail overlay
+    if (overlays.showSpeed) {
+      const speed = Math.hypot(organism.vx, organism.vy);
+      const speedRatio = maxSpeed ? Math.min(1, speed / maxSpeed) : Math.min(1, speed / 1.0);
+      if (speedRatio > 0.05) {
+        const trailLen = size * (0.8 + speedRatio * 2.2);
+        const tailAlpha = 0.15 + speedRatio * 0.25;
+        ctx.save();
+        ctx.globalAlpha = tailAlpha;
+        ctx.strokeStyle = `hsl(${color.h}, ${color.s}%, ${Math.max(10, color.l - 20)}%)`;
+        ctx.lineWidth = 3;
+        // Draw tail opposite to facing (rotation)
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(-trailLen, 0);
+        ctx.stroke();
+        ctx.restore();
+      }
     }
 
     // Selection indicator for player
@@ -110,7 +169,12 @@ export class OrganismRenderer {
     }
 
     // Energy bar
-    this.renderEnergyBar(ctx, organism);
+    if (options.showUI !== false) {
+      this.renderEnergyBar(ctx, organism);
+    }
+
+    // Non-tangible overlays (drawn in world space, not rotated)
+    this.renderOverlays(ctx, organism, overlays);
   }
 
   /**
@@ -147,6 +211,85 @@ export class OrganismRenderer {
   }
 
   /**
+   * Apply color patterns to organism segment
+   */
+  static applyColorPattern(ctx, x, y, radius, pattern, secondaryColor) {
+    ctx.save();
+
+    const alpha = pattern.intensity * 0.7; // Limit opacity for subtlety
+
+    switch (pattern.type) {
+      case 'spots':
+        // Draw spots
+        { ctx.globalAlpha = alpha;
+        ctx.fillStyle = secondaryColor;
+        const spotCount = Math.floor(3 + pattern.intensity * 5);
+        for (let i = 0; i < spotCount; i++) {
+          const angle = (i / spotCount) * Math.PI * 2;
+          const spotDist = radius * 0.5;
+          const spotX = x + Math.cos(angle) * spotDist;
+          const spotY = y + Math.sin(angle) * spotDist;
+          const spotRadius = radius * 0.15 * pattern.intensity;
+          ctx.beginPath();
+          ctx.arc(spotX, spotY, spotRadius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        break; }
+
+      case 'stripes':
+        // Draw radial stripes
+        { ctx.globalAlpha = alpha;
+        ctx.strokeStyle = secondaryColor;
+        ctx.lineWidth = radius * 0.1;
+        const stripeCount = Math.floor(2 + pattern.intensity * 4);
+        for (let i = 0; i < stripeCount; i++) {
+          const angle = (i / stripeCount) * Math.PI;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(
+            x + Math.cos(angle) * radius * 0.8,
+            y + Math.sin(angle) * radius * 0.8
+          );
+          ctx.stroke();
+        }
+        break; }
+
+      case 'gradient':
+        // Create asymmetric gradient
+        { ctx.globalAlpha = alpha;
+        const gradX = x + radius * 0.3 * pattern.intensity;
+        const gradY = y;
+        const gradient = ctx.createRadialGradient(gradX, gradY, 0, x, y, radius);
+        gradient.addColorStop(0, secondaryColor);
+        gradient.addColorStop(1, 'transparent');
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+        break; }
+
+      case 'mottled':
+        // Draw random mottled pattern
+        { ctx.globalAlpha = alpha;
+        ctx.fillStyle = secondaryColor;
+        const mottleCount = Math.floor(5 + pattern.intensity * 10);
+        for (let i = 0; i < mottleCount; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const dist = Math.random() * radius * 0.7;
+          const mottleX = x + Math.cos(angle) * dist;
+          const mottleY = y + Math.sin(angle) * dist;
+          const mottleRadius = radius * 0.08;
+          ctx.beginPath();
+          ctx.arc(mottleX, mottleY, mottleRadius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        break; }
+    }
+
+    ctx.restore();
+  }
+
+  /**
    * Render energy bar above organism
    */
   static renderEnergyBar(ctx, organism) {
@@ -170,6 +313,114 @@ export class OrganismRenderer {
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.lineWidth = 1;
     ctx.strokeRect(x, y, barWidth, barHeight);
+  }
+
+  /**
+   * Render a small thumbnail of an organism into a canvas (centered, scaled)
+   */
+  static renderThumbnail(canvas, organism) {
+    const ctx = canvas.getContext('2d');
+    const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) ? window.devicePixelRatio : 1;
+    const cssW = canvas.clientWidth || canvas.width;
+    const cssH = canvas.clientHeight || canvas.height;
+    const targetW = Math.max(1, Math.round(cssW * dpr));
+    const targetH = Math.max(1, Math.round(cssH * dpr));
+
+    // Build a stable cache key for this thumbnail frame
+    const repId = organism && typeof organism.id !== 'undefined'
+      ? organism.id
+      : (organism && organism.getSpeciesId ? organism.getSpeciesId() : 'unknown');
+    const cacheKey = `${repId}|${dpr}|${cssW}x${cssH}`;
+
+    // If nothing relevant changed, skip re-rendering
+    if (canvas.__thumbKey === cacheKey && canvas.width === targetW && canvas.height === targetH) {
+      return;
+    }
+
+    // Only resize backing store if changed to avoid flicker
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW;
+      canvas.height = targetH;
+    }
+
+    // Reset transform and clear
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Work in CSS pixels, scale by DPR once
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    const W = cssW;
+    const H = cssH;
+
+    // Compute scale so organism fits nicely
+    const targetRadius = Math.min(W, H) * 0.35;
+    const size = organism.phenotype?.size || 10;
+    const scale = Math.max(0.1, targetRadius / Math.max(1, size));
+
+    // Create a masked organism object at center with zero rotation
+    const mock = Object.create(organism);
+    mock.x = W / 2;
+    mock.y = H / 2;
+    mock.rotation = 0;
+    mock.isPlayer = false;
+
+    // Apply scale around center
+    ctx.translate(W / 2, H / 2);
+    ctx.scale(scale, scale);
+    // Render relative to (0,0) after translate; adjust mock coords
+    mock.x = 0;
+    mock.y = 0;
+    // Draw without UI overlays/energy bars
+    this.render(ctx, mock, false, {}, { showUI: false });
+    ctx.restore();
+
+    // Update cache key
+    canvas.__thumbKey = cacheKey;
+  }
+
+  /**
+   * Render optional overlays for non-tangible traits
+   */
+  static renderOverlays(ctx, organism, overlays = {}) {
+    if (!overlays || (!overlays.showSensory && !overlays.showRepro)) return;
+
+  const { visionRange, detectionRadius } = organism.phenotype;
+
+    // Sensory rings
+    if (overlays.showSensory) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(organism.x, organism.y, detectionRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(135, 206, 250, 0.25)'; // light blue
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(organism.x, organism.y, visionRange, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(30, 144, 255, 0.2)'; // dodger blue
+      ctx.lineWidth = 1;
+      ctx.setLineDash([6, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
+    // Reproduction readiness ring
+    if (overlays.showRepro && organism.energy >= (organism.phenotype.reproductionThreshold || Infinity)) {
+      ctx.save();
+      const t = Date.now() / 500;
+      const pulse = 1 + Math.sin(t) * 0.1;
+      const ringRadius = organism.phenotype.size + 10 * pulse;
+      ctx.beginPath();
+      ctx.arc(organism.x, organism.y, ringRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(72, 187, 120, 0.9)'; // brighter green
+      ctx.lineWidth = 3;
+      ctx.setLineDash([8, 6]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
   }
 
   /**
@@ -211,8 +462,8 @@ export class OrganismRenderer {
   static renderBackground(ctx, width, height) {
     // Gradient background
     const gradient = ctx.createLinearGradient(0, 0, 0, height);
-    gradient.addColorStop(0, '#0a1929');
-    gradient.addColorStop(1, '#1e3a5f');
+    gradient.addColorStop(0, '#204f81ff');
+    gradient.addColorStop(1, '#061629ff');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
 

@@ -1,3 +1,4 @@
+import { Genome } from '../genetics/Genome.js';
 import { Organism } from '../organisms/Organism.js';
 import { OrganismAI } from '../organisms/OrganismAI.js';
 
@@ -23,17 +24,11 @@ export class World {
     this.temperature = 1.0;
     this.mutationRate = 0.05;
     this.initialPopulation = 10;
+    this.initialFoodCount = 10;
+    this.initialSpecies = 1;
   }
 
-  /**
-   * Set the player's organism
-   */
-  setPlayerOrganism(organism) {
-    this.playerOrganism = organism;
-    if (!this.organisms.includes(organism)) {
-      this.addOrganism(organism);
-    }
-  }
+
 
   /**
    * Add organism to world with AI
@@ -323,16 +318,36 @@ export class World {
   spawnInitialPopulation() {
     this.clear();
 
-    for (let i = 0; i < this.initialPopulation; i++) {
-      const x = Math.random() * this.width;
-      const y = Math.random() * this.height;
-      const organism = new Organism(x, y);
-      organism.energy = 50 + Math.random() * 50; // Random initial energy
-      this.addOrganism(organism);
+    const speciesCount = Math.max(1, Math.floor(this.initialSpecies || 1));
+    const total = Math.max(0, Math.floor(this.initialPopulation || 0));
+
+    // Determine group sizes per species
+    const baseCount = Math.floor(total / speciesCount);
+    let remainder = total % speciesCount;
+
+    // Create distinct base genomes per species
+    const baseGenomes = Array.from({ length: speciesCount }, () => Genome.createDefault());
+
+    for (let s = 0; s < speciesCount; s++) {
+      const countForSpecies = baseCount + (remainder > 0 ? 1 : 0);
+      if (remainder > 0) remainder--;
+
+      for (let i = 0; i < countForSpecies; i++) {
+        const x = Math.random() * this.width;
+        const y = Math.random() * this.height;
+        // Clone base genome so organisms are independent but remain same species
+        const genome = baseGenomes[s].clone();
+        const organism = new Organism(x, y, genome);
+        organism.energy = 50 + Math.random() * 50; // Random initial energy
+        this.addOrganism(organism);
+      }
     }
 
-    // Spawn some initial food
-    this.spawnRandomFood(Math.floor(this.initialPopulation * 0.5));
+    // Spawn initial food as per setting
+    const initialFood = Math.max(0, Math.floor(this.initialFoodCount || 0));
+    if (initialFood > 0) {
+      this.spawnRandomFood(initialFood);
+    }
   }
 
   /**
@@ -350,6 +365,12 @@ export class World {
     }
     if (params.initialPopulation !== undefined) {
       this.initialPopulation = params.initialPopulation;
+    }
+    if (params.initialFoodCount !== undefined) {
+      this.initialFoodCount = params.initialFoodCount;
+    }
+    if (params.initialSpecies !== undefined) {
+      this.initialSpecies = params.initialSpecies;
     }
   }
 

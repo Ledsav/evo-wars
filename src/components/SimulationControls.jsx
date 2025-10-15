@@ -1,7 +1,11 @@
+import { useState } from 'react';
+
 /**
  * SimulationControls - Game-like control bar for simulation
  */
 export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomIn, onZoomOut, onZoomReset }) {
+  const [simulationSpeed, setSimulationSpeed] = useState(1);
+
   const handlePauseToggle = () => {
     world.togglePause();
   };
@@ -12,7 +16,38 @@ export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomI
     }
   };
 
+  const handleSpeedIncrease = () => {
+    const speedLevels = [0.25, 0.5, 1, 2, 4];
+    const currentIndex = speedLevels.indexOf(simulationSpeed);
+    if (currentIndex < speedLevels.length - 1) {
+      const newSpeed = speedLevels[currentIndex + 1];
+      setSimulationSpeed(newSpeed);
+      gameEngine.setSimulationSpeed(newSpeed);
+    }
+  };
+
+  const handleSpeedDecrease = () => {
+    const speedLevels = [0.25, 0.5, 1, 2, 4];
+    const currentIndex = speedLevels.indexOf(simulationSpeed);
+    if (currentIndex > 0) {
+      const newSpeed = speedLevels[currentIndex - 1];
+      setSimulationSpeed(newSpeed);
+      gameEngine.setSimulationSpeed(newSpeed);
+    }
+  };
+
+  const handleSpeedReset = () => {
+    setSimulationSpeed(1);
+    gameEngine.setSimulationSpeed(1);
+  };
+
   const stats = world.getStats();
+
+
+  const convertToDays = (seconds) => {
+    const days = Math.floor(seconds / 60 / 60 / 24);
+    return days;
+  }
 
   return (
     <div className="simulation-controls">
@@ -82,6 +117,41 @@ export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomI
             100%
           </button>
         </div>
+
+        <div className="speed-controls">
+          <button
+            className="control-button speed-button"
+            onClick={handleSpeedDecrease}
+            title="Decrease Speed"
+            disabled={simulationSpeed <= 0.25}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 8 8 12 12 16" />
+              <line x1="16" y1="12" x2="8" y2="12" />
+            </svg>
+          </button>
+          <span className="speed-display">{simulationSpeed}x</span>
+          <button
+            className="control-button speed-button"
+            onClick={handleSpeedIncrease}
+            title="Increase Speed"
+            disabled={simulationSpeed >= 4}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 8 16 12 12 16" />
+              <line x1="8" y1="12" x2="16" y2="12" />
+            </svg>
+          </button>
+          <button
+            className="control-button speed-button"
+            onClick={handleSpeedReset}
+            title="Reset Speed"
+          >
+            1x
+          </button>
+        </div>
       </div>
 
       <div className="controls-center">
@@ -105,7 +175,7 @@ export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomI
           <div className="stat-icon">⏱️</div>
           <div className="stat-info">
             <div className="stat-label">Time</div>
-            <div className="stat-value">{stats.worldTime}s</div>
+            <div className="stat-value">{convertToDays(stats.worldTime)}</div>
           </div>
         </div>
       </div>

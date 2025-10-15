@@ -10,7 +10,9 @@ export class GameEngine {
     this.fps = 60;
     this.frameTime = 1000 / this.fps;
     this.accumulator = 0;
-    this.fixedDeltaTime = 16; // Fixed time step in ms
+    this.baseFixedDeltaTime = 16; // Base fixed time step in ms
+    this.fixedDeltaTime = 16; // Current time step (affected by speed)
+    this.simulationSpeed = 1; // Speed multiplier (0.25x, 0.5x, 1x, 2x, 4x)
 
     // Callbacks
     this.onUpdate = null;
@@ -48,10 +50,11 @@ export class GameEngine {
     // Accumulate frame time
     this.accumulator += deltaTime;
 
-    // Update with fixed time step
-    while (this.accumulator >= this.fixedDeltaTime) {
-      this.update(this.fixedDeltaTime);
-      this.accumulator -= this.fixedDeltaTime;
+    // Update with fixed time step (applying speed multiplier)
+    while (this.accumulator >= this.baseFixedDeltaTime) {
+      // Pass scaled deltaTime to update (this affects simulation speed)
+      this.update(this.baseFixedDeltaTime * this.simulationSpeed);
+      this.accumulator -= this.baseFixedDeltaTime;
     }
 
     // Render
@@ -95,5 +98,21 @@ export class GameEngine {
    */
   setRenderCallback(callback) {
     this.onRender = callback;
+  }
+
+  /**
+   * Set simulation speed
+   * @param {number} speed - Speed multiplier (0.25, 0.5, 1, 2, 4)
+   */
+  setSimulationSpeed(speed) {
+    this.simulationSpeed = Math.max(0.25, Math.min(4, speed));
+    this.fixedDeltaTime = this.baseFixedDeltaTime * this.simulationSpeed;
+  }
+
+  /**
+   * Get current simulation speed
+   */
+  getSimulationSpeed() {
+    return this.simulationSpeed;
   }
 }

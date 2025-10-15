@@ -8,9 +8,6 @@ export function GenomePopup({ organism, onClose }) {
   // Don't render if no organism selected
   if (!organism) return null;
 
-  console.log('GenomePopup rendering with organism:', organism);
-  console.log('Has genome?', !!organism.genome);
-  console.log('Genome:', organism.genome);
 
   // Safely check for genome and genes
   if (!organism.genome || typeof organism.genome.getGeneNames !== 'function') {
@@ -39,7 +36,6 @@ export function GenomePopup({ organism, onClose }) {
   }
 
   const genes = organism.genome.getGeneNames();
-  console.log('Genes:', genes);
 
   if (!genes || genes.length === 0) {
     console.error('❌ No genes found in genome');

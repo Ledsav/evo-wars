@@ -159,7 +159,9 @@ export class Genome {
       metabolism: Gene.createRandom('metabolism', 12, 21),
       reproduction: Gene.createRandom('reproduction', 15, 24),
       sensory: Gene.createRandom('sensory', 12, 21),
-      aggression: Gene.createRandom('aggression', 12, 21)
+      aggression: Gene.createRandom('aggression', 12, 21),
+      pigmentation: Gene.createRandom('pigmentation', 15, 24),
+      structure: Gene.createRandom('structure', 12, 21)
     });
   }
 

@@ -2,10 +2,7 @@
  * EnvironmentControls - Control environmental parameters
  */
 export function EnvironmentControls({ world, onEnvironmentChange }) {
-  const handleMapSizeChange = (e) => {
-    const size = parseInt(e.target.value);
-    onEnvironmentChange({ mapSize: size });
-  };
+
 
   const handleFoodRateChange = (e) => {
     const rate = parseFloat(e.target.value);
@@ -27,9 +24,17 @@ export function EnvironmentControls({ world, onEnvironmentChange }) {
     onEnvironmentChange({ initialPopulation: pop });
   };
 
-  const handleRestart = () => {
-    onEnvironmentChange({ restart: true });
+  const handleInitialFoodChange = (e) => {
+    const val = parseInt(e.target.value);
+    onEnvironmentChange({ initialFoodCount: val });
   };
+
+  const handleInitialSpeciesChange = (e) => {
+    const val = parseInt(e.target.value);
+    onEnvironmentChange({ initialSpecies: val });
+  };
+
+
 
   return (
     <div className="environment-controls">
@@ -109,6 +114,44 @@ export function EnvironmentControls({ world, onEnvironmentChange }) {
           onChange={handleInitialPopChange}
         />
         <div className="control-description">Starting organisms on restart</div>
+      </div>
+
+      <div className="control-group">
+        <div className="control-header">
+          <label>
+            <span className="control-icon">🍏</span>
+            Initial Food
+          </label>
+          <span className="control-value">{world.initialFoodCount || 10}</span>
+        </div>
+        <input
+          type="range"
+          min="0"
+          max="200"
+          step="5"
+          value={world.initialFoodCount || 10}
+          onChange={handleInitialFoodChange}
+        />
+        <div className="control-description">Food items placed at start</div>
+      </div>
+
+      <div className="control-group">
+        <div className="control-header">
+          <label>
+            <span className="control-icon">🧫</span>
+            Initial Species
+          </label>
+          <span className="control-value">{world.initialSpecies || 1}</span>
+        </div>
+        <input
+          type="range"
+          min="1"
+          max="10"
+          step="1"
+          value={world.initialSpecies || 1}
+          onChange={handleInitialSpeciesChange}
+        />
+        <div className="control-description">Number of distinct starting species</div>
       </div>
     </div>
   );

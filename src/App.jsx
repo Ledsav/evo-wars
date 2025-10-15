@@ -1,20 +1,29 @@
 import { useEffect, useRef, useState } from 'react';
 import './App.css';
-import { SimulationControls } from './components/SimulationControls';
-import { EnvironmentControls } from './components/EnvironmentControls';
 import { CreatureViewer } from './components/CreatureViewer';
+import { EnvironmentControls } from './components/EnvironmentControls';
 import { SimulationCanvas } from './components/SimulationCanvas';
+import { SimulationControls } from './components/SimulationControls';
 import { World } from './core/world/World';
 import { GameEngine } from './engine/GameEngine';
 
+const WIDTH_RESOLUTIONS = {low: 800, medium: 1280, high: 1920, ultra: 2560};
+const HEIGHT_RESOLUTIONS = {low: 600, medium: 720, high: 1080, ultra: 1440};
+
 function App() {
-  const [worldSize, setWorldSize] = useState({ width: 1200, height: 800 });
+  const [worldSize, setWorldSize] = useState({ width: WIDTH_RESOLUTIONS.ultra, height: HEIGHT_RESOLUTIONS.ultra });
   const [world] = useState(() => new World(worldSize.width, worldSize.height));
   const [gameEngine] = useState(() => new GameEngine(world));
   const [, forceUpdate] = useState({});
-  const [activeTab, setActiveTab] = useState('creatures');
+  const [activeTab, setActiveTab] = useState('controls');
   const [highlightedSpeciesId, setHighlightedSpeciesId] = useState(null);
   const [zoom, setZoom] = useState(1);
+  const [overlays, setOverlays] = useState({
+    showSensory: false,
+    showRepro: false,
+    showSpeed: false,
+    showMetabolism: false,
+  });
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -65,8 +74,8 @@ function App() {
   const handleZoomIn = () => {
     const newZoom = Math.min(zoom + 0.25, 2);
     setZoom(newZoom);
-    const baseWidth = 1200;
-    const baseHeight = 800;
+    const baseWidth = WIDTH_RESOLUTIONS.ultra;
+    const baseHeight = HEIGHT_RESOLUTIONS.ultra;
     const newSize = {
       width: Math.floor(baseWidth * newZoom),
       height: Math.floor(baseHeight * newZoom)
@@ -82,8 +91,8 @@ function App() {
   const handleZoomOut = () => {
     const newZoom = Math.max(zoom - 0.25, 0.5);
     setZoom(newZoom);
-    const baseWidth = 1200;
-    const baseHeight = 800;
+    const baseWidth = WIDTH_RESOLUTIONS.ultra;
+    const baseHeight = HEIGHT_RESOLUTIONS.ultra;
     const newSize = {
       width: Math.floor(baseWidth * newZoom),
       height: Math.floor(baseHeight * newZoom)
@@ -104,7 +113,7 @@ function App() {
 
   const handleZoomReset = () => {
     setZoom(1);
-    const newSize = { width: 1200, height: 800 };
+    const newSize = { width: WIDTH_RESOLUTIONS.ultra, height: HEIGHT_RESOLUTIONS.ultra };
     world.width = newSize.width;
     world.height = newSize.height;
     setWorldSize(newSize);
@@ -130,6 +139,7 @@ function App() {
             width={worldSize.width}
             height={worldSize.height}
             highlightedSpeciesId={highlightedSpeciesId}
+            overlays={overlays}
             ref={canvasRef}
           />
         </div>
@@ -137,10 +147,10 @@ function App() {
         <div className="sidebar">
           <div className="tab-buttons">
             <button
-              className={`tab-button ${activeTab === 'creatures' ? 'active' : ''}`}
-              onClick={() => setActiveTab('creatures')}
+              className={`tab-button ${activeTab === 'controls' ? 'active' : ''}`}
+              onClick={() => setActiveTab('controls')}
             >
-              Creatures
+              Controls
             </button>
             <button
               className={`tab-button ${activeTab === 'environment' ? 'active' : ''}`}
@@ -151,10 +161,12 @@ function App() {
           </div>
 
           <div className="tab-content">
-            {activeTab === 'creatures' && (
+            {activeTab === 'controls' && (
               <CreatureViewer
                 world={world}
                 onSpeciesHighlight={handleSpeciesHighlight}
+                overlays={overlays}
+                onUpdateOverlays={(next) => setOverlays(prev => ({ ...prev, ...next }))}
               />
             )}
 
