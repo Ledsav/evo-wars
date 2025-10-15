@@ -90,10 +90,6 @@ export function GenomePopup({ organism, onClose }) {
                 {(organism.energy || 0).toFixed(1)} / {organism.maxEnergy || 100}
               </span>
             </div>
-            <div className="overview-stat">
-              <span className="stat-label">DNA Points:</span>
-              <span className="stat-value">{(organism.dnaPoints || 0).toFixed(1)}</span>
-            </div>
           </div>
 
           <div className="genome-genes-section">

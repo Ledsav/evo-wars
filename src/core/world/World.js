@@ -1,6 +1,7 @@
 import { Genome } from '../genetics/Genome.js';
 import { Organism } from '../organisms/Organism.js';
 import { OrganismAI } from '../organisms/OrganismAI.js';
+import { ObjectPool } from '../../utils/ObjectPool.js';
 
 /**
  * World - Contains all organisms and handles simulation
@@ -35,6 +36,18 @@ export class World {
     // Staggered update system
     this.updateBatchSize = 50; // Update AI for N organisms per frame
     this.currentUpdateIndex = 0;
+
+    // Object pooling for food particles
+    this.foodPool = new ObjectPool(
+      () => ({ x: 0, y: 0, energy: 0, radius: 0 }), // Factory
+      (food) => { // Reset function
+        food.x = 0;
+        food.y = 0;
+        food.energy = 0;
+        food.radius = 0;
+      },
+      100 // Initial pool size
+    );
   }
 
 
@@ -160,15 +173,15 @@ export class World {
   }
 
   /**
-   * Add food particle
+   * Add food particle (uses object pooling)
    */
   addFood(x, y, energy = 20) {
-    const food = {
-      x,
-      y,
-      energy,
-      radius: 5 + energy / 10
-    };
+    const food = this.foodPool.acquire();
+    food.x = x;
+    food.y = y;
+    food.energy = energy;
+    food.radius = 5 + energy / 10;
+
     this.foodParticles.push(food);
     this.addFoodToGrid(food);
   }
@@ -364,13 +377,11 @@ export class World {
       if (!org2.isAlive) {
         // Winner consumes loser
         org1.consume(org2.phenotype.size * 10);
-        org1.dnaPoints += org2.phenotype.size * 0.5;
       }
     } else if (org2Attacking && power2 > power1) {
       org1.takeDamage(5);
       if (!org1.isAlive) {
         org2.consume(org1.phenotype.size * 10);
-        org2.dnaPoints += org1.phenotype.size * 0.5;
       }
     } else if (org1Attacking && org2Attacking) {
       // Both attacking - mutual combat
@@ -378,13 +389,11 @@ export class World {
         org2.takeDamage(5);
         if (!org2.isAlive) {
           org1.consume(org2.phenotype.size * 10);
-          org1.dnaPoints += org2.phenotype.size * 0.5;
         }
       } else if (power2 > power1) {
         org1.takeDamage(5);
         if (!org1.isAlive) {
           org2.consume(org1.phenotype.size * 10);
-          org2.dnaPoints += org1.phenotype.size * 0.5;
         }
       } else {
         // Equal power - both take damage
@@ -456,12 +465,13 @@ export class World {
       }
     }
 
-    // Remove consumed food
+    // Remove consumed food and return to pool
     for (const food of consumedFood) {
       const index = this.foodParticles.indexOf(food);
       if (index > -1) {
         this.foodParticles.splice(index, 1);
         this.removeFoodFromGrid(food, food.x, food.y);
+        this.foodPool.release(food); // Return to pool
       }
     }
   }
@@ -651,6 +661,9 @@ export class World {
    * Clear all organisms and reset world
    */
   clear() {
+    // Return all food to pool before clearing
+    this.foodPool.releaseAll(this.foodParticles);
+
     this.organisms = [];
     this.organismAIs.clear();
     this.foodParticles = [];

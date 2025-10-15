@@ -25,10 +25,8 @@ export class Organism {
     this.energy = 100;
     this.maxEnergy = 100;
     this.age = 0;
+    this.maxAge = 60000 + Math.random() * 30000; // 60-90 seconds lifespan
     this.isAlive = true;
-
-    // DNA points for mutations
-    this.dnaPoints = 0;
 
     // Parent tracking (for offspring protection)
     this.parentId = parentId;
@@ -226,13 +224,19 @@ export class Organism {
     // Age
     this.age += deltaTime;
 
+    // Die of old age
+    if (this.age >= this.maxAge) {
+      this.die();
+      return;
+    }
+
     // Convert deltaTime from ms to seconds for energy calculation
     const deltaSeconds = deltaTime / 1000;
 
-    // Consume energy based on metabolism (MUCH slower now)
+    // Consume energy based on metabolism (increased from 0.05 to 0.15 - 3x faster death)
     const energyCost = this.phenotype.metabolicRate * deltaSeconds *
                        (this.phenotype.size / 10) *
-                       (1 + Math.abs(this.vx) + Math.abs(this.vy)) * 0.05; // Reduced to 5% of original
+                       (1 + Math.abs(this.vx) + Math.abs(this.vy)) * 0.15;
     this.energy -= energyCost;
 
     // Die if out of energy
@@ -240,9 +244,6 @@ export class Organism {
       this.die();
       return;
     }
-
-    // Generate DNA points over time (slower)
-    this.dnaPoints += deltaSeconds * 0.1;
 
     // Update physics
     this.updatePhysics(deltaTime);
@@ -298,9 +299,6 @@ export class Organism {
 
     const absorbed = energyAmount * this.phenotype.energyEfficiency;
     this.energy = Math.min(this.maxEnergy, this.energy + absorbed);
-
-    // Generate DNA points from feeding
-    this.dnaPoints += absorbed * 0.05;
   }
 
   /**

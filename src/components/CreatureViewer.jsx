@@ -116,6 +116,9 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
       sp.representative = rep || sp.organisms[0];
     }
 
+    // Sort by population (descending - largest first)
+    result.sort((a, b) => b.organisms.length - a.organisms.length);
+
     return result;
   };
 
