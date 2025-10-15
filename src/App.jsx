@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import './App.css';
 import { CreatureViewer } from './components/CreatureViewer';
 import { EnvironmentControls } from './components/EnvironmentControls';
+import { FamilyTree } from './components/FamilyTree';
 import { SimulationCanvas } from './components/SimulationCanvas';
 import { SimulationControls } from './components/SimulationControls';
+import { Statistics } from './components/Statistics';
 import { World } from './core/world/World';
 import { GameEngine } from './engine/GameEngine';
 
@@ -120,6 +122,10 @@ function App() {
     forceUpdate({});
   };
 
+  const handleUpdateSampleFrequency = (frequency) => {
+    world.statsTracker.setSampleFrequency(frequency);
+  };
+
   return (
     <div className="app">
       <SimulationControls
@@ -158,6 +164,18 @@ function App() {
             >
               Environment
             </button>
+            <button
+              className={`tab-button ${activeTab === 'statistics' ? 'active' : ''}`}
+              onClick={() => setActiveTab('statistics')}
+            >
+              Statistics
+            </button>
+            <button
+              className={`tab-button ${activeTab === 'genealogy' ? 'active' : ''}`}
+              onClick={() => setActiveTab('genealogy')}
+            >
+              Genealogy
+            </button>
           </div>
 
           <div className="tab-content">
@@ -174,6 +192,19 @@ function App() {
               <EnvironmentControls
                 world={world}
                 onEnvironmentChange={handleEnvironmentChange}
+              />
+            )}
+
+            {activeTab === 'statistics' && (
+              <Statistics
+                statsTracker={world.statsTracker}
+                onUpdateSampleFrequency={handleUpdateSampleFrequency}
+              />
+            )}
+
+            {activeTab === 'genealogy' && (
+              <FamilyTree
+                genealogyTracker={world.genealogyTracker}
               />
             )}
           </div>

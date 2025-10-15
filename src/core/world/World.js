@@ -2,6 +2,8 @@ import { Genome } from '../genetics/Genome.js';
 import { Organism } from '../organisms/Organism.js';
 import { OrganismAI } from '../organisms/OrganismAI.js';
 import { ObjectPool } from '../../utils/ObjectPool.js';
+import { StatisticsTracker } from '../../utils/StatisticsTracker.js';
+import { GenealogyTracker } from '../../utils/GenealogyTracker.js';
 
 /**
  * World - Contains all organisms and handles simulation
@@ -48,6 +50,15 @@ export class World {
       },
       100 // Initial pool size
     );
+
+    // Statistics tracking (5% sample frequency by default)
+    this.statsTracker = new StatisticsTracker(0.05);
+
+    // Genealogy tracking for species family tree
+    this.genealogyTracker = new GenealogyTracker();
+
+    // Combat statistics
+    this.combatKills = 0;
   }
 
 
@@ -299,6 +310,12 @@ export class World {
         this.spawnRandomFood(1);
       }
     }
+
+    // Collect statistics
+    this.statsTracker.collectStats(this);
+
+    // Update genealogy tracking
+    this.genealogyTracker.update(this);
   }
 
   /**
@@ -377,11 +394,13 @@ export class World {
       if (!org2.isAlive) {
         // Winner consumes loser
         org1.consume(org2.phenotype.size * 10);
+        this.combatKills++;
       }
     } else if (org2Attacking && power2 > power1) {
       org1.takeDamage(5);
       if (!org1.isAlive) {
         org2.consume(org1.phenotype.size * 10);
+        this.combatKills++;
       }
     } else if (org1Attacking && org2Attacking) {
       // Both attacking - mutual combat
@@ -389,11 +408,13 @@ export class World {
         org2.takeDamage(5);
         if (!org2.isAlive) {
           org1.consume(org2.phenotype.size * 10);
+          this.combatKills++;
         }
       } else if (power2 > power1) {
         org1.takeDamage(5);
         if (!org1.isAlive) {
           org2.consume(org1.phenotype.size * 10);
+          this.combatKills++;
         }
       } else {
         // Equal power - both take damage
@@ -594,6 +615,8 @@ export class World {
     // Create distinct base genomes per species
     const baseGenomes = Array.from({ length: speciesCount }, () => Genome.createDefault());
 
+    const initialOrganisms = [];
+
     for (let s = 0; s < speciesCount; s++) {
       const countForSpecies = baseCount + (remainder > 0 ? 1 : 0);
       if (remainder > 0) remainder--;
@@ -606,8 +629,12 @@ export class World {
         const organism = new Organism(x, y, genome);
         organism.energy = 50 + Math.random() * 50; // Random initial energy
         this.addOrganism(organism);
+        initialOrganisms.push(organism);
       }
     }
+
+    // Register initial species in genealogy tracker
+    this.genealogyTracker.registerInitialSpecies(initialOrganisms);
 
     // Spawn initial food as per setting (in clusters for more natural distribution)
     const initialFood = Math.max(0, Math.floor(this.initialFoodCount || 0));
@@ -671,6 +698,9 @@ export class World {
     this.foodGrid.clear();
     this.time = 0;
     this.playerOrganism = null;
+    this.statsTracker.clear();
+    this.genealogyTracker.clear();
+    this.combatKills = 0;
   }
 
   /**

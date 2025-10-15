@@ -1,0 +1,302 @@
+import { useEffect, useRef, useState } from 'react';
+import './Statistics.css';
+
+/**
+ * LineChart - Lightweight canvas-based line chart component
+ */
+function LineChart({ data, lines, width = 400, height = 200, title }) {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || data.time.length === 0) return;
+
+    const ctx = canvas.getContext('2d');
+    const padding = { top: 30, right: 20, bottom: 40, left: 60 };
+    const chartWidth = width - padding.left - padding.right;
+    const chartHeight = height - padding.top - padding.bottom;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
+
+    // Set styles
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(0, 0, width, height);
+
+    // Draw title
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 14px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText(title, width / 2, 20);
+
+    // Calculate scales
+    const timeValues = data.time;
+    const minTime = timeValues[0] || 0;
+    const maxTime = timeValues[timeValues.length - 1] || 1;
+    const timeRange = maxTime - minTime || 1;
+
+    // Find min/max for all enabled lines
+    let minY = Infinity;
+    let maxY = -Infinity;
+
+    for (const line of lines) {
+      if (!line.enabled) continue;
+      const values = data[line.key];
+      if (values && values.length > 0) {
+        minY = Math.min(minY, ...values);
+        maxY = Math.max(maxY, ...values);
+      }
+    }
+
+    // Handle edge cases
+    if (minY === Infinity) minY = 0;
+    if (maxY === -Infinity) maxY = 1;
+    if (minY === maxY) {
+      minY = Math.max(0, minY - 1);
+      maxY = maxY + 1;
+    }
+
+    const yRange = maxY - minY;
+
+    // Helper functions
+    const scaleX = (time) => padding.left + ((time - minTime) / timeRange) * chartWidth;
+    const scaleY = (value) => padding.top + chartHeight - ((value - minY) / yRange) * chartHeight;
+
+    // Draw grid lines
+    ctx.strokeStyle = '#333333';
+    ctx.lineWidth = 1;
+
+    // Horizontal grid lines
+    const ySteps = 5;
+    for (let i = 0; i <= ySteps; i++) {
+      const y = padding.top + (chartHeight / ySteps) * i;
+      ctx.beginPath();
+      ctx.moveTo(padding.left, y);
+      ctx.lineTo(padding.left + chartWidth, y);
+      ctx.stroke();
+
+      // Y-axis labels
+      const value = maxY - (yRange / ySteps) * i;
+      ctx.fillStyle = '#888888';
+      ctx.font = '11px system-ui';
+      ctx.textAlign = 'right';
+      ctx.fillText(value.toFixed(0), padding.left - 10, y + 4);
+    }
+
+    // Vertical grid lines
+    const xSteps = 5;
+    for (let i = 0; i <= xSteps; i++) {
+      const x = padding.left + (chartWidth / xSteps) * i;
+      ctx.beginPath();
+      ctx.moveTo(x, padding.top);
+      ctx.lineTo(x, padding.top + chartHeight);
+      ctx.stroke();
+
+      // X-axis labels
+      const time = minTime + (timeRange / xSteps) * i;
+      ctx.fillStyle = '#888888';
+      ctx.font = '11px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText(time.toFixed(0) + 's', x, height - 10);
+    }
+
+    // Draw axes
+    ctx.strokeStyle = '#666666';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(padding.left, padding.top);
+    ctx.lineTo(padding.left, padding.top + chartHeight);
+    ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
+    ctx.stroke();
+
+    // Draw data lines
+    for (const line of lines) {
+      if (!line.enabled) continue;
+
+      const values = data[line.key];
+      if (!values || values.length === 0) continue;
+
+      ctx.strokeStyle = line.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+
+      for (let i = 0; i < values.length; i++) {
+        const x = scaleX(timeValues[i]);
+        const y = scaleY(values[i]);
+
+        if (i === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+
+      ctx.stroke();
+    }
+
+    // Draw legend
+    ctx.font = '12px system-ui';
+    ctx.textAlign = 'left';
+    let legendY = padding.top + 5;
+
+    for (const line of lines) {
+      if (!line.enabled) continue;
+
+      // Draw color box
+      ctx.fillStyle = line.color;
+      ctx.fillRect(padding.left + chartWidth + 5, legendY - 8, 12, 12);
+
+      // Draw label
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(line.label, padding.left + chartWidth + 22, legendY + 2);
+      legendY += 18;
+    }
+
+  }, [data, lines, width, height, title]);
+
+  return <canvas ref={canvasRef} width={width} height={height} className="statistics-chart" />;
+}
+
+/**
+ * Statistics - Display simulation statistics with time-series charts
+ */
+export function Statistics({ statsTracker, onUpdateSampleFrequency }) {
+  const [sampleFrequency, setSampleFrequency] = useState(1); // 1% default
+
+
+  const data = statsTracker.getData();
+  const latest = statsTracker.getLatestValues();
+  const dataPoints = statsTracker.getDataPointCount();
+
+  const handleFrequencyChange = (e) => {
+    const value = parseInt(e.target.value);
+    setSampleFrequency(value);
+    onUpdateSampleFrequency(value / 100); // Convert percentage to decimal
+  };
+
+
+  // Define chart lines - each metric gets its own chart for better visibility
+  const organismsLines = [
+    { key: 'aliveOrganisms', label: 'Organisms', color: '#4CAF50', enabled: true },
+  ];
+
+  const speciesLines = [
+    { key: 'speciesCount', label: 'Species', color: '#2196F3', enabled: true },
+  ];
+
+  const topSpeciesLines = [
+    { key: 'topSpeciesCount', label: 'Top Species', color: '#FF9800', enabled: true },
+  ];
+
+  const resourceLines = [
+    { key: 'foodCount', label: 'Food', color: '#8BC34A', enabled: true },
+  ];
+
+  const energyLines = [
+    { key: 'averageEnergy', label: 'Avg Energy', color: '#FFC107', enabled: true },
+  ];
+
+  const combatLines = [
+    { key: 'combatKills', label: 'Combat Kills', color: '#F44336', enabled: true },
+  ];
+
+  return (
+    <div className="statistics">
+      <h2>Simulation Statistics</h2>
+
+      {/* Current values */}
+      <div className="stats-summary">
+        <div className="stat-card">
+          <div className="stat-label">Organisms</div>
+          <div className="stat-value">{latest.aliveOrganisms}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Species</div>
+          <div className="stat-value">{latest.speciesCount}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Top Species</div>
+          <div className="stat-value">{latest.topSpeciesCount}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Food</div>
+          <div className="stat-value">{latest.foodCount}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Combat Kills</div>
+          <div className="stat-value">{latest.combatKills}</div>
+        </div>
+      </div>
+
+      {/* Sampling controls */}
+      <div className="stats-controls">
+        <label className="control-label">
+          Sample Frequency: {sampleFrequency}% ({dataPoints} points)
+          <input
+            type="range"
+            min="1"
+            max="20"
+            value={sampleFrequency}
+            onChange={handleFrequencyChange}
+            className="slider"
+          />
+          <div className="control-hint">
+            Lower = better performance, Higher = more detail
+          </div>
+        </label>
+      </div>
+
+      {/* Charts */}
+      {data.time.length > 0 ? (
+        <div className="charts-container">
+          <LineChart
+            data={data}
+            lines={organismsLines}
+            width={450}
+            height={220}
+            title="Total Organisms Over Time"
+          />
+          <LineChart
+            data={data}
+            lines={speciesLines}
+            width={450}
+            height={220}
+            title="Species Count Over Time"
+          />
+          <LineChart
+            data={data}
+            lines={topSpeciesLines}
+            width={450}
+            height={220}
+            title="Top Species Population Over Time"
+          />
+          <LineChart
+            data={data}
+            lines={resourceLines}
+            width={450}
+            height={220}
+            title="Food Particles Over Time"
+          />
+          <LineChart
+            data={data}
+            lines={energyLines}
+            width={450}
+            height={220}
+            title="Average Energy Over Time"
+          />
+          <LineChart
+            data={data}
+            lines={combatLines}
+            width={450}
+            height={220}
+            title="Combat Kills Over Time"
+          />
+        </div>
+      ) : (
+        <div className="no-data">
+          <p>No data collected yet. Statistics will appear as the simulation runs.</p>
+        </div>
+      )}
+    </div>
+  );
+}

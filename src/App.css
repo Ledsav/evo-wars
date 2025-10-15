@@ -51,7 +51,7 @@ body {
 }
 
 .sidebar {
-  width: 380px;
+  width: 450px;
   flex-shrink: 0;
   background: rgba(30, 41, 59, 0.8);
   border: 2px solid rgba(59, 130, 246, 0.3);
@@ -100,6 +100,7 @@ body {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+  box-sizing: content-box;
 }
 
 .tab-content::-webkit-scrollbar {

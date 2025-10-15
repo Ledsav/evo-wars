@@ -443,11 +443,13 @@ export class OrganismAI {
       const myPower = this.organism.phenotype.size + this.organism.phenotype.toxicity * 10;
       const theirPower = other.phenotype.size + other.phenotype.toxicity * 10;
 
-      // Aggressive organisms attack if stronger; when urgent, lower threshold
-  const baseAggression = this.organism.phenotype.aggression;
-  const attackAggressionThreshold = Math.max(0.3, 0.6 - (this.urgency || 0) * 0.2);
-  const powerAdvantage = Math.max(0.95, 1.2 - (this.urgency || 0) * 0.25); // from 1.2 down to 0.95
-      if (baseAggression > attackAggressionThreshold && myPower > theirPower * powerAdvantage) {
+      // Aggressive organisms attack if stronger; thresholds tuned to phenotype cap (~0.3)
+      const baseAggression = this.organism.phenotype.aggression;
+      // Lower baseline threshold and allow urgency to reduce it slightly (but not below 0.15)
+      const attackAggressionThreshold = Math.max(0.15, 0.25 - (this.urgency || 0) * 0.15);
+      // Require modest power advantage; at high urgency allow near-parity but not disadvantage
+      const powerAdvantage = Math.max(0.95, 1.1 - (this.urgency || 0) * 0.3);
+      if (baseAggression >= attackAggressionThreshold && myPower >= theirPower * powerAdvantage) {
         if (distance < this.organism.phenotype.size * 3) {
           this.target = other;
           this.state = 'attacking';
