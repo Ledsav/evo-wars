@@ -21,13 +21,27 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
       // Clear and render background
       OrganismRenderer.renderBackground(ctx, width, height);
 
-      // Render food
+      // Render food (with frustum culling)
       for (const food of world.foodParticles) {
+        // Skip rendering if off-screen
+        if (food.x + food.radius < 0 || food.x - food.radius > width ||
+            food.y + food.radius < 0 || food.y - food.radius > height) {
+          continue;
+        }
         OrganismRenderer.renderFood(ctx, food);
       }
 
-      // Render organisms
+      // Render organisms (with frustum culling)
       for (const organism of world.organisms) {
+        const size = organism.phenotype?.size || 10;
+        const margin = size + 30; // Extra margin for energy bars and effects
+
+        // Skip rendering if off-screen
+        if (organism.x + margin < 0 || organism.x - margin > width ||
+            organism.y + margin < 0 || organism.y - margin > height) {
+          continue;
+        }
+
         const isHighlighted = highlightedSpeciesId !== null &&
                             organism.getSpeciesId() === highlightedSpeciesId;
         OrganismRenderer.render(ctx, organism, isHighlighted, overlays || {});

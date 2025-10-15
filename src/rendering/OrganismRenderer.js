@@ -3,6 +3,25 @@
  * Creates cell-like visual representation based on phenotype
  */
 export class OrganismRenderer {
+  // Gradient cache to avoid recreating gradients every frame
+  static gradientCache = new Map();
+  static maxCacheSize = 200; // Limit cache size
+
+  /**
+   * Get or create cached gradient
+   */
+  static getCachedGradient(ctx, key, createFn) {
+    if (!this.gradientCache.has(key)) {
+      // Clear old entries if cache is too large
+      if (this.gradientCache.size >= this.maxCacheSize) {
+        const firstKey = this.gradientCache.keys().next().value;
+        this.gradientCache.delete(firstKey);
+      }
+      this.gradientCache.set(key, createFn());
+    }
+    return this.gradientCache.get(key);
+  }
+
   /**
    * Render a single organism
    */
@@ -72,13 +91,17 @@ export class OrganismRenderer {
       ctx.beginPath();
       ctx.arc(x, 0, radius, 0, Math.PI * 2);
 
-      // Gradient for 3D effect
-      const gradient = ctx.createRadialGradient(
-        x - radius * 0.3, -radius * 0.3, 0,
-        x, 0, radius
-      );
-      gradient.addColorStop(0, `hsl(${color.h}, ${color.s}%, ${Math.min(color.l + 20, 90)}%)`);
-      gradient.addColorStop(1, fillColor);
+      // Use cached gradient for 3D effect
+      const gradKey = `cell-${color.h}-${color.s}-${color.l}-${radius.toFixed(0)}`;
+      const gradient = this.getCachedGradient(ctx, gradKey, () => {
+        const g = ctx.createRadialGradient(
+          x - radius * 0.3, -radius * 0.3, 0,
+          x, 0, radius
+        );
+        g.addColorStop(0, `hsl(${color.h}, ${color.s}%, ${Math.min(color.l + 20, 90)}%)`);
+        g.addColorStop(1, fillColor);
+        return g;
+      });
       ctx.fillStyle = gradient;
       ctx.fill();
 
@@ -429,14 +452,18 @@ export class OrganismRenderer {
   static renderFood(ctx, food) {
     ctx.save();
 
-    // Glow effect
-    const gradient = ctx.createRadialGradient(
-      food.x, food.y, 0,
-      food.x, food.y, food.radius * 2
-    );
-    gradient.addColorStop(0, 'rgba(144, 238, 144, 0.8)');
-    gradient.addColorStop(0.5, 'rgba(144, 238, 144, 0.4)');
-    gradient.addColorStop(1, 'rgba(144, 238, 144, 0)');
+    // Use cached gradient for glow effect
+    const gradKey = `food-${food.radius.toFixed(1)}`;
+    const gradient = this.getCachedGradient(ctx, gradKey, () => {
+      const g = ctx.createRadialGradient(
+        food.x, food.y, 0,
+        food.x, food.y, food.radius * 2
+      );
+      g.addColorStop(0, 'rgba(144, 238, 144, 0.8)');
+      g.addColorStop(0.5, 'rgba(144, 238, 144, 0.4)');
+      g.addColorStop(1, 'rgba(144, 238, 144, 0)');
+      return g;
+    });
 
     ctx.fillStyle = gradient;
     ctx.beginPath();

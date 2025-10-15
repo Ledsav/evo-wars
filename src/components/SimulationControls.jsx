@@ -43,11 +43,17 @@ export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomI
 
   const stats = world.getStats();
 
+  const formatElapsedTime = (seconds) => {
+    // return hours if less than a day, otherwise days and hours
+    if (seconds < 86400) {
+      const hours = Math.floor(seconds / 3600);
+      return hours + 'h';
+    }
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    return days + 'd ' + hours + 'h';
+  };
 
-  const convertToDays = (seconds) => {
-    const days = Math.floor(seconds / 60 / 60 / 24);
-    return days;
-  }
 
   return (
     <div className="simulation-controls">
@@ -171,19 +177,13 @@ export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomI
           </div>
         </div>
 
+      
         <div className="stat-display">
           <div className="stat-icon">⏱️</div>
           <div className="stat-info">
             <div className="stat-label">Time</div>
-            <div className="stat-value">{convertToDays(stats.worldTime)}</div>
+            <div className="stat-value">{formatElapsedTime(stats.worldTime)}</div>
           </div>
-        </div>
-      </div>
-
-      <div className="controls-right">
-        <div className="status-indicator">
-          <div className={`status-dot ${world.isPaused ? 'paused' : 'running'}`} />
-          <span className="status-text">{world.isPaused ? 'Paused' : 'Running'}</span>
         </div>
       </div>
     </div>

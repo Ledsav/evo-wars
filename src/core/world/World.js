@@ -24,11 +24,111 @@ export class World {
     this.temperature = 1.0;
     this.mutationRate = 0.05;
     this.initialPopulation = 10;
-    this.initialFoodCount = 10;
+    this.initialFoodCount = 30; // Increased from 10 to 30
     this.initialSpecies = 1;
+
+    // Spatial hash grid for collision optimization
+    this.cellSize = 100; // Grid cell size in pixels
+    this.grid = new Map(); // Map of "x,y" -> Set of organisms
+    this.foodGrid = new Map(); // Map of "x,y" -> Set of food particles
+
+    // Staggered update system
+    this.updateBatchSize = 50; // Update AI for N organisms per frame
+    this.currentUpdateIndex = 0;
   }
 
 
+
+  /**
+   * Get grid cell key for position
+   */
+  getCellKey(x, y) {
+    const cellX = Math.floor(x / this.cellSize);
+    const cellY = Math.floor(y / this.cellSize);
+    return `${cellX},${cellY}`;
+  }
+
+  /**
+   * Get all grid cells within a radius
+   */
+  getCellsInRadius(x, y, radius) {
+    const minCellX = Math.floor((x - radius) / this.cellSize);
+    const maxCellX = Math.floor((x + radius) / this.cellSize);
+    const minCellY = Math.floor((y - radius) / this.cellSize);
+    const maxCellY = Math.floor((y + radius) / this.cellSize);
+
+    const cells = [];
+    for (let cx = minCellX; cx <= maxCellX; cx++) {
+      for (let cy = minCellY; cy <= maxCellY; cy++) {
+        cells.push(`${cx},${cy}`);
+      }
+    }
+    return cells;
+  }
+
+  /**
+   * Add organism to spatial grid
+   */
+  addToGrid(organism) {
+    const key = this.getCellKey(organism.x, organism.y);
+    if (!this.grid.has(key)) {
+      this.grid.set(key, new Set());
+    }
+    this.grid.get(key).add(organism);
+    organism._gridCell = key; // Cache current cell
+  }
+
+  /**
+   * Remove organism from spatial grid
+   */
+  removeFromGrid(organism) {
+    if (organism._gridCell) {
+      const cell = this.grid.get(organism._gridCell);
+      if (cell) {
+        cell.delete(organism);
+        if (cell.size === 0) {
+          this.grid.delete(organism._gridCell);
+        }
+      }
+      organism._gridCell = null;
+    }
+  }
+
+  /**
+   * Update organism's grid position
+   */
+  updateGrid(organism) {
+    const newKey = this.getCellKey(organism.x, organism.y);
+    if (organism._gridCell !== newKey) {
+      this.removeFromGrid(organism);
+      this.addToGrid(organism);
+    }
+  }
+
+  /**
+   * Add food to spatial grid
+   */
+  addFoodToGrid(food) {
+    const key = this.getCellKey(food.x, food.y);
+    if (!this.foodGrid.has(key)) {
+      this.foodGrid.set(key, new Set());
+    }
+    this.foodGrid.get(key).add(food);
+  }
+
+  /**
+   * Remove food from spatial grid
+   */
+  removeFoodFromGrid(food, x, y) {
+    const key = this.getCellKey(x, y);
+    const cell = this.foodGrid.get(key);
+    if (cell) {
+      cell.delete(food);
+      if (cell.size === 0) {
+        this.foodGrid.delete(key);
+      }
+    }
+  }
 
   /**
    * Add organism to world with AI
@@ -39,6 +139,7 @@ export class World {
     organism.y = Math.max(organism.phenotype.size, Math.min(this.height - organism.phenotype.size, organism.y));
 
     this.organisms.push(organism);
+    this.addToGrid(organism);
 
     // Create AI for organism if not player
     if (!organism.isPlayer) {
@@ -53,6 +154,7 @@ export class World {
     const index = this.organisms.indexOf(organism);
     if (index > -1) {
       this.organisms.splice(index, 1);
+      this.removeFromGrid(organism);
       this.organismAIs.delete(organism);
     }
   }
@@ -61,12 +163,14 @@ export class World {
    * Add food particle
    */
   addFood(x, y, energy = 20) {
-    this.foodParticles.push({
+    const food = {
       x,
       y,
       energy,
       radius: 5 + energy / 10
-    });
+    };
+    this.foodParticles.push(food);
+    this.addFoodToGrid(food);
   }
 
   /**
@@ -82,6 +186,38 @@ export class World {
   }
 
   /**
+   * Spawn a cluster/patch of food at a location
+   */
+  spawnFoodCluster(centerX, centerY, count = 5, spread = 80) {
+    for (let i = 0; i < count; i++) {
+      // Use gaussian-like distribution for more realistic clustering
+      const angle = Math.random() * Math.PI * 2;
+      const distance = (Math.random() + Math.random()) / 2 * spread; // Triangular distribution
+
+      const x = centerX + Math.cos(angle) * distance;
+      const y = centerY + Math.sin(angle) * distance;
+
+      // Keep within bounds
+      const clampedX = Math.max(20, Math.min(this.width - 20, x));
+      const clampedY = Math.max(20, Math.min(this.height - 20, y));
+
+      const energy = 15 + Math.random() * 15;
+      this.addFood(clampedX, clampedY, energy);
+    }
+  }
+
+  /**
+   * Spawn random food clusters
+   */
+  spawnRandomFoodClusters(clusterCount = 1, foodPerCluster = 5) {
+    for (let i = 0; i < clusterCount; i++) {
+      const centerX = Math.random() * this.width;
+      const centerY = Math.random() * this.height;
+      this.spawnFoodCluster(centerX, centerY, foodPerCluster);
+    }
+  }
+
+  /**
    * Update world (called each frame)
    */
   update(deltaTime) {
@@ -89,13 +225,26 @@ export class World {
 
     this.time += deltaTime;
 
-    // Update all organisms
+    // Update all organisms (physics only)
     for (const organism of this.organisms) {
       // Apply temperature effect to metabolism
       const tempModifiedDelta = deltaTime * this.temperature;
       organism.update(tempModifiedDelta);
 
-      // Update AI behavior
+      // Update spatial grid position
+      this.updateGrid(organism);
+    }
+
+    // Staggered AI updates (only update a batch per frame)
+    const batchSize = Math.min(this.updateBatchSize, this.organisms.length);
+    const startIdx = this.currentUpdateIndex;
+
+    for (let i = 0; i < batchSize; i++) {
+      const idx = (startIdx + i) % this.organisms.length;
+      const organism = this.organisms[idx];
+
+      if (!organism) continue;
+
       const ai = this.organismAIs.get(organism);
       if (ai) {
         ai.update(deltaTime);
@@ -107,6 +256,9 @@ export class World {
         }
       }
     }
+
+    // Move to next batch for next frame
+    this.currentUpdateIndex = (this.currentUpdateIndex + batchSize) % Math.max(1, this.organisms.length);
 
     // Handle collisions
     this.handleCollisions();
@@ -121,24 +273,58 @@ export class World {
     this.keepOrganismsInBounds();
 
     // Spawn food based on food spawn rate
-    const maxFood = Math.floor(10 + this.foodSpawnRate * 20);
-    const spawnChance = 0.001 * deltaTime * this.foodSpawnRate;
-    if (this.foodParticles.length < maxFood && Math.random() < spawnChance) {
-      this.spawnRandomFood(1);
+    const maxFood = Math.floor(30 + this.foodSpawnRate * 50); // Increased from 10+20 to 30+50
+
+    // Spawn food clusters (more realistic food distribution)
+    const clusterSpawnChance = 0.003 * deltaTime * this.foodSpawnRate; // 3x more likely
+    if (this.foodParticles.length < maxFood && Math.random() < clusterSpawnChance) {
+      // 70% chance of cluster, 30% chance of single food
+      if (Math.random() < 0.7) {
+        const clusterSize = 3 + Math.floor(Math.random() * 5); // 3-7 food items per cluster
+        this.spawnRandomFoodClusters(1, clusterSize);
+      } else {
+        this.spawnRandomFood(1);
+      }
     }
   }
 
   /**
-   * Handle collisions between organisms
+   * Handle collisions between organisms (optimized with spatial grid)
    */
   handleCollisions() {
-    for (let i = 0; i < this.organisms.length; i++) {
-      for (let j = i + 1; j < this.organisms.length; j++) {
-        const org1 = this.organisms[i];
-        const org2 = this.organisms[j];
+    const checked = new Set(); // Track checked pairs
 
-        if (org1.isAlive && org2.isAlive && org1.collidesWith(org2)) {
-          this.resolveCollision(org1, org2);
+    for (const organism of this.organisms) {
+      if (!organism.isAlive) continue;
+
+      // Get nearby organisms from spatial grid
+      const cellKeys = this.getCellsInRadius(organism.x, organism.y, organism.phenotype.size * 3);
+
+      for (const key of cellKeys) {
+        const cell = this.grid.get(key);
+        if (!cell) continue;
+
+        for (const other of cell) {
+          if (other === organism || !other.isAlive) continue;
+
+          // Create unique pair ID (smaller ID first)
+          const pairId = organism.id < other.id
+            ? `${organism.id}-${other.id}`
+            : `${other.id}-${organism.id}`;
+
+          // Skip if already checked this pair
+          if (checked.has(pairId)) continue;
+          checked.add(pairId);
+
+          // Check collision using squared distance (faster)
+          const dx = organism.x - other.x;
+          const dy = organism.y - other.y;
+          const distSq = dx * dx + dy * dy;
+          const minDist = organism.phenotype.size + other.phenotype.size;
+
+          if (distSq < minDist * minDist) {
+            this.resolveCollision(organism, other);
+          }
         }
       }
     }
@@ -233,22 +419,49 @@ export class World {
   }
 
   /**
-   * Handle food consumption
+   * Handle food consumption (optimized with spatial grid)
    */
   handleFoodConsumption() {
+    const consumedFood = new Set();
+
     for (const organism of this.organisms) {
       if (!organism.isAlive) continue;
 
-      for (let i = this.foodParticles.length - 1; i >= 0; i--) {
-        const food = this.foodParticles[i];
-        const dx = organism.x - food.x;
-        const dy = organism.y - food.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
+      // Get nearby food from spatial grid
+      const cellKeys = this.getCellsInRadius(organism.x, organism.y, organism.phenotype.size + 20);
 
-        if (distance < organism.phenotype.size + food.radius) {
-          organism.consume(food.energy);
-          this.foodParticles.splice(i, 1);
+      for (const key of cellKeys) {
+        const cell = this.foodGrid.get(key);
+        if (!cell) continue;
+
+        for (const food of cell) {
+          if (consumedFood.has(food)) continue;
+
+          // Use squared distance (faster)
+          const dx = organism.x - food.x;
+          const dy = organism.y - food.y;
+          const distSq = dx * dx + dy * dy;
+          const minDist = organism.phenotype.size + food.radius;
+
+          if (distSq < minDist * minDist) {
+            organism.consume(food.energy);
+            consumedFood.add(food);
+            break; // Organism can only eat one food per frame
+          }
         }
+
+        if (consumedFood.size > 0 && consumedFood.has([...cell][cell.size - 1])) {
+          break; // Already found food for this organism
+        }
+      }
+    }
+
+    // Remove consumed food
+    for (const food of consumedFood) {
+      const index = this.foodParticles.indexOf(food);
+      if (index > -1) {
+        this.foodParticles.splice(index, 1);
+        this.removeFoodFromGrid(food, food.x, food.y);
       }
     }
   }
@@ -301,15 +514,58 @@ export class World {
   }
 
   /**
-   * Get organisms near a position
+   * Get organisms near a position (optimized with spatial grid)
    */
   getOrganismsNear(x, y, radius) {
-    return this.organisms.filter(org => {
-      if (!org.isAlive) return false;
-      const dx = org.x - x;
-      const dy = org.y - y;
-      return Math.sqrt(dx * dx + dy * dy) <= radius;
-    });
+    const nearby = [];
+    const cellKeys = this.getCellsInRadius(x, y, radius);
+    const radiusSq = radius * radius; // Use squared distance
+
+    for (const key of cellKeys) {
+      const cell = this.grid.get(key);
+      if (!cell) continue;
+
+      for (const org of cell) {
+        if (!org.isAlive) continue;
+
+        // Use squared distance (faster - no sqrt)
+        const dx = org.x - x;
+        const dy = org.y - y;
+        const distSq = dx * dx + dy * dy;
+
+        if (distSq <= radiusSq) {
+          nearby.push(org);
+        }
+      }
+    }
+
+    return nearby;
+  }
+
+  /**
+   * Get food particles near a position (optimized with spatial grid)
+   */
+  getFoodNear(x, y, radius) {
+    const nearby = [];
+    const cellKeys = this.getCellsInRadius(x, y, radius);
+    const radiusSq = radius * radius;
+
+    for (const key of cellKeys) {
+      const cell = this.foodGrid.get(key);
+      if (!cell) continue;
+
+      for (const food of cell) {
+        const dx = food.x - x;
+        const dy = food.y - y;
+        const distSq = dx * dx + dy * dy;
+
+        if (distSq <= radiusSq) {
+          nearby.push(food);
+        }
+      }
+    }
+
+    return nearby;
   }
 
   /**
@@ -343,10 +599,20 @@ export class World {
       }
     }
 
-    // Spawn initial food as per setting
+    // Spawn initial food as per setting (in clusters for more natural distribution)
     const initialFood = Math.max(0, Math.floor(this.initialFoodCount || 0));
     if (initialFood > 0) {
-      this.spawnRandomFood(initialFood);
+      // Spawn food in clusters instead of randomly scattered
+      const clusterCount = Math.ceil(initialFood / 6); // ~6 food items per cluster
+      const foodPerCluster = Math.floor(initialFood / clusterCount);
+      const remainder = initialFood % clusterCount;
+
+      this.spawnRandomFoodClusters(clusterCount, foodPerCluster);
+
+      // Spawn any remainder as single items
+      if (remainder > 0) {
+        this.spawnRandomFood(remainder);
+      }
     }
   }
 
@@ -388,6 +654,8 @@ export class World {
     this.organisms = [];
     this.organismAIs.clear();
     this.foodParticles = [];
+    this.grid.clear();
+    this.foodGrid.clear();
     this.time = 0;
     this.playerOrganism = null;
   }
