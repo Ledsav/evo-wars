@@ -89,8 +89,8 @@ export function RadarChart({ organism }) {
   }));
 
   // SVG dimensions and settings
-  const width = 600;
-  const height = 500;
+  const width = 900;
+  const height = 600;
   const centerX = width / 2;
   const centerY = height / 2;
   const maxRadius = 180;
@@ -134,7 +134,7 @@ export function RadarChart({ organism }) {
         )}
         <h3 className="radar-chart-title">Trait Profile</h3>
       </div>
-      <svg className="radar-chart-svg" width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+      <svg className="radar-chart-svg" width={width} height={height} viewBox={`0 0 ${width } ${height }`}>
         {/* Background grid circles */}
         <g className="radar-grid">
           {Array.from({ length: levels }).map((_, i) => {

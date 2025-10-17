@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { OrganismRenderer } from '../../rendering/OrganismRenderer';
 import { InfoIcon, CompareIcon } from '../shared/Icons/Icons';
 import { GenomePopup } from './GenomePopup';
@@ -70,10 +70,22 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
   const [genomePopupOrganism, setGenomePopupOrganism] = useState(null);
   const [selectedForComparison, setSelectedForComparison] = useState(new Set());
   const [comparisonOrganisms, setComparisonOrganisms] = useState(null);
+  const [updateTrigger, setUpdateTrigger] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(3); // Show top 3 by default
+
   // Persist a stable representative per species across renders
   const repMapRef = useRef({});
   // Cache generated thumbnails per species representative to avoid re-rendering
   const thumbCacheRef = useRef(new Map());
+
+  // Throttle updates - only update every 500ms instead of every frame
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setUpdateTrigger(prev => prev + 1);
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Handle species selection for highlighting
   const handleSpeciesClick = (speciesId) => {
@@ -97,7 +109,6 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
 
   // Open comparison popup
   const handleOpenComparison = () => {
-    const species = getSpeciesGroups();
     const organisms = species
       .filter(sp => selectedForComparison.has(sp.id))
       .map(sp => sp.representative);
@@ -111,7 +122,6 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
 
   // Select all species for comparison
   const handleSelectAll = () => {
-    const species = getSpeciesGroups();
     const allSpeciesIds = new Set(species.map(sp => sp.id));
     setSelectedForComparison(allSpeciesIds);
   };
@@ -121,8 +131,8 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
     setSelectedForComparison(new Set());
   };
 
-  // Group organisms by species
-  const getSpeciesGroups = () => {
+  // Group organisms by species - memoized and throttled to avoid constant re-calculation
+  const species = useMemo(() => {
     const groups = {};
     const alive = world.getAliveOrganisms();
 
@@ -160,9 +170,27 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
     result.sort((a, b) => b.organisms.length - a.organisms.length);
 
     return result;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [updateTrigger]); // Only recalculate when updateTrigger changes (every 500ms)
+
+  // Get visible species based on current count
+  const visibleSpecies = useMemo(() => {
+    return species.slice(0, visibleCount);
+  }, [species, visibleCount]);
+
+  const hasMore = visibleCount < species.length;
+
+  const handleLoadMore = () => {
+    setVisibleCount(prev => prev + 5);
   };
 
-  const species = getSpeciesGroups();
+  const handleShowAll = () => {
+    setVisibleCount(species.length);
+  };
+
+  const handleShowLess = () => {
+    setVisibleCount(3);
+  };
 
   return (
     <div className="creature-viewer">
@@ -208,7 +236,7 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
       </div>
 
       <div className="species-header">
-        <h3>Species ({species.length})</h3>
+        <h3>Species ({species.length}) - Showing {visibleSpecies.length}</h3>
         <div className="species-header-actions">
           <div className="select-all-controls">
             <button
@@ -240,7 +268,7 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
       </div>
 
       <div className="species-list">
-        {species.map((sp) => (
+        {visibleSpecies.map((sp) => (
           <div
             key={sp.id}
             className={`species-item ${selectedSpecies === sp.id ? 'selected' : ''} ${selectedForComparison.has(sp.id) ? 'selected-for-comparison' : ''}`}
@@ -276,6 +304,39 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
           </div>
         ))}
       </div>
+
+      {/* Load More Controls */}
+      {species.length > 3 && (
+        <div className="load-more-controls">
+          {hasMore && (
+            <>
+              <button
+                className="load-more-btn"
+                onClick={handleLoadMore}
+                title="Load 5 more species"
+              >
+                Load More (+5)
+              </button>
+              <button
+                className="load-more-btn"
+                onClick={handleShowAll}
+                title="Show all species"
+              >
+                Show All ({species.length})
+              </button>
+            </>
+          )}
+          {visibleCount > 3 && (
+            <button
+              className="load-more-btn"
+              onClick={handleShowLess}
+              title="Show only top 3 species"
+            >
+              Show Less
+            </button>
+          )}
+        </div>
+      )}
 
       <GenomePopup
         organism={genomePopupOrganism}

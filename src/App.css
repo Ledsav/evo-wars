@@ -403,6 +403,50 @@ body {
   transform: scale(0.95);
 }
 
+/* Load More Controls */
+.load-more-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px solid rgba(71, 85, 105, 0.3);
+  border-radius: 10px;
+  margin-top: 12px;
+}
+
+.load-more-btn {
+  padding: 10px 18px;
+  background: linear-gradient(
+    135deg,
+    rgba(59, 130, 246, 0.2),
+    rgba(37, 99, 235, 0.2)
+  );
+  border: 2px solid rgba(59, 130, 246, 0.5);
+  border-radius: 8px;
+  color: #60a5fa;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.load-more-btn:hover {
+  background: linear-gradient(
+    135deg,
+    rgba(59, 130, 246, 0.3),
+    rgba(37, 99, 235, 0.3)
+  );
+  border-color: rgba(59, 130, 246, 0.8);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  transform: translateY(-2px);
+}
+
+.load-more-btn:active {
+  transform: translateY(0);
+}
+
 /* Species Details */
 .species-details {
   background: rgba(15, 23, 42, 0.6);

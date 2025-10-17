@@ -71,10 +71,11 @@ export function OverlayRadarChart({ organisms }) {
   }));
 
   // SVG dimensions and settings
-  const width = 700;
+  const width = 600;
   const height = 600;
-  const centerX = width / 2;
-  const centerY = height / 2;
+  const viewBoxFactor = 1.2;
+  const centerX = (width) / 2;
+  const centerY = (height * viewBoxFactor) / 2;
   const maxRadius = 220;
   const levels = 5;
   const angleStep = (Math.PI * 2) / traits.length;
@@ -102,7 +103,7 @@ export function OverlayRadarChart({ organisms }) {
 
   return (
     <div className="overlay-radar-chart-container">
-      <svg className="overlay-radar-chart-svg" width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+      <svg className="overlay-radar-chart-svg" width={width} height={height} viewBox={`0 0 ${width} ${height * viewBoxFactor}`}>
         {/* Background grid circles */}
         <g className="radar-grid">
           {Array.from({ length: levels }).map((_, i) => {

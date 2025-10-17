@@ -28,6 +28,8 @@ function App() {
   });
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
+  const updateCounterRef = useRef(0);
+  const lastUIUpdateRef = useRef(0);
 
   // Initialize game
   useEffect(() => {
@@ -36,7 +38,14 @@ function App() {
 
     // Setup game engine callbacks
     gameEngine.setUpdateCallback(() => {
-      forceUpdate({});
+      updateCounterRef.current++;
+
+      // Only trigger React re-renders every 30 frames (~500ms at 60fps)
+      // This prevents UI components from re-rendering on every simulation tick
+      if (updateCounterRef.current - lastUIUpdateRef.current >= 30) {
+        lastUIUpdateRef.current = updateCounterRef.current;
+        forceUpdate({});
+      }
     });
 
     gameEngine.setRenderCallback(() => {

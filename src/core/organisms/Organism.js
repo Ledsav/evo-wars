@@ -1,4 +1,5 @@
 import { Genome } from '../genetics/Genome.js';
+import { TraitCalculator } from './TraitCalculator.js';
 
 /**
  * Organism - Base class for all living entities in the simulation
@@ -84,95 +85,43 @@ export class Organism {
 
   /**
    * Calculate phenotype from proteins
-   * This is where genes affect physical traits
+   * Uses TraitCalculator for explicit, well-documented trait formulas
    */
   calculatePhenotype(proteins) {
+    // Initialize phenotype with default values (used when proteins are missing)
     const phenotype = {
-      // Size
-      size: 10,
-      mass: 1,
-
-      // Movement
-      maxSpeed: 2,
-      acceleration: 0.1,
-
-      // Defense
-      armor: 0,
-      toxicity: 0,
-
-      // Metabolism
-      metabolicRate: 1,
-      energyEfficiency: 1,
-
-      // Reproduction
-      reproductionCost: 50,
-      reproductionThreshold: 80,
-
-      // Sensory
-      visionRange: 100,
-      detectionRadius: 50,
-
-      // Visual
+      // Visual (non-genetic defaults)
       color: { h: 180, s: 60, l: 50 },
       segments: 1
     };
 
-    // Size gene
-    if (proteins.size) {
-      const sizeProtein = proteins.size;
-      phenotype.size = 8 + sizeProtein.properties.length * 0.8;
-      phenotype.mass = phenotype.size / 10;
-    }
+    // Calculate size traits
+    phenotype.size = TraitCalculator.calculateSize(proteins.size);
+    phenotype.mass = TraitCalculator.calculateMass(phenotype);
 
-    // Speed gene
-    if (proteins.speed) {
-      const speedProtein = proteins.speed;
-      const flexibility = speedProtein.getFlexibility();
-      phenotype.maxSpeed = 1 + flexibility * 0.3;
-      phenotype.acceleration = 0.05 + speedProtein.properties.tiny * 0.02;
-    }
+    // Calculate movement traits
+    const movement = TraitCalculator.calculateMovement(proteins.speed);
+    Object.assign(phenotype, movement);
 
-    // Defense gene
-    if (proteins.defense) {
-      const defenseProtein = proteins.defense;
-      phenotype.armor = defenseProtein.properties.hydrophobic * 0.5;
-      phenotype.toxicity = defenseProtein.properties.aromatic > 2 ? 1 : 0;
-    }
+    // Calculate defense traits
+    const defense = TraitCalculator.calculateDefense(proteins.defense);
+    Object.assign(phenotype, defense);
 
-    // Metabolism gene
-    if (proteins.metabolism) {
-      const metabProtein = proteins.metabolism;
-      const charge = Math.abs(metabProtein.getCharge());
-      phenotype.metabolicRate = 0.5 + charge * 0.1;
-      phenotype.energyEfficiency = 1 + metabProtein.properties.hydrophobicRatio;
-    }
+    // Calculate metabolism traits
+    const metabolism = TraitCalculator.calculateMetabolism(proteins.metabolism);
+    Object.assign(phenotype, metabolism);
 
-    // Reproduction gene
-    if (proteins.reproduction) {
-      const reproProtein = proteins.reproduction;
-      phenotype.reproductionCost = 40 + reproProtein.properties.length * 2;
-      phenotype.reproductionThreshold = 70 + reproProtein.properties.large;
-    }
+    // Calculate reproduction traits
+    const reproduction = TraitCalculator.calculateReproduction(proteins.reproduction);
+    Object.assign(phenotype, reproduction);
 
-    // Sensory gene
-    if (proteins.sensory) {
-      const sensoryProtein = proteins.sensory;
-      phenotype.visionRange = 80 + sensoryProtein.properties.aromatic * 15;
-      phenotype.detectionRadius = 40 + sensoryProtein.properties.positive * 8;
-    }
+    // Calculate sensory traits
+    const sensory = TraitCalculator.calculateSensory(proteins.sensory);
+    Object.assign(phenotype, sensory);
 
-    // Aggression gene
-    if (proteins.aggression) {
-      const aggressionProtein = proteins.aggression;
-      // Aggression based on charged amino acids and aromatic content
-      const aggFactor = (aggressionProtein.properties.aromatic * 2 +
-                        aggressionProtein.properties.positive) / aggressionProtein.properties.length;
-      phenotype.aggression = Math.max(0, Math.min(1, aggFactor * 0.3)); // 0-1 scale
-      phenotype.cooperativeness = 1 - phenotype.aggression; // Inverse relationship
-    } else {
-      phenotype.aggression = 0.5;
-      phenotype.cooperativeness = 0.5;
-    }
+    // Calculate behavioral traits
+    const behavior = TraitCalculator.calculateBehavior(proteins.aggression);
+    Object.assign(phenotype, behavior);
 
     // Pigmentation (if gene exists)
     if (proteins.pigmentation) {
