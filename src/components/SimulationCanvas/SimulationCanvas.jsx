@@ -21,6 +21,9 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
       // Clear and render background
       OrganismRenderer.renderBackground(ctx, width, height);
 
+      // Render section walls (if enabled)
+      OrganismRenderer.renderSectionWalls(ctx, world);
+
       // Render food (with frustum culling)
       for (const food of world.foodParticles) {
         // Skip rendering if off-screen

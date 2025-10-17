@@ -73,7 +73,7 @@ export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomI
               <rect x="14" y="4" width="4" height="16" />
             </svg>
           )}
-          <span>{world.isPaused ? 'Resume' : 'Pause'}</span>
+          {/* <span>{world.isPaused ? 'Resume' : 'Pause'}</span> */}
         </button>
 
         <button
@@ -85,7 +85,7 @@ export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomI
             <polyline points="23 4 23 10 17 10" />
             <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
           </svg>
-          <span>Restart</span>
+          {/* <span>Restart</span> */}
         </button>
 
         <div className="zoom-controls">

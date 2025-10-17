@@ -299,6 +299,11 @@ export class Organism {
     // Give some initial energy
     offspring.energy = this.phenotype.reproductionCost * 0.3;
 
+    // Inherit parent's section assignment (for species segregation)
+    if (this._assignedSection !== undefined) {
+      offspring._assignedSection = this._assignedSection;
+    }
+
     return offspring;
   }
 

@@ -29,6 +29,7 @@ export class World {
     this.initialPopulation = 10;
     this.initialFoodCount = 30; // Increased from 10 to 30
     this.initialSpecies = 1;
+    this.separationSections = 1; // Number of sections for species segregation (1 = no separation)
 
     // Spatial hash grid for collision optimization
     this.cellSize = 100; // Grid cell size in pixels
@@ -62,6 +63,30 @@ export class World {
   }
 
 
+
+  /**
+   * Get section boundaries for a given section index
+   */
+  getSectionBounds(sectionIndex) {
+    const sections = Math.max(1, this.separationSections);
+
+    // Calculate grid dimensions (try to make it as square as possible)
+    const cols = Math.ceil(Math.sqrt(sections));
+    const rows = Math.ceil(sections / cols);
+
+    const sectionWidth = this.width / cols;
+    const sectionHeight = this.height / rows;
+
+    const col = sectionIndex % cols;
+    const row = Math.floor(sectionIndex / cols);
+
+    return {
+      minX: col * sectionWidth,
+      maxX: (col + 1) * sectionWidth,
+      minY: row * sectionHeight,
+      maxY: (row + 1) * sectionHeight
+    };
+  }
 
   /**
    * Get grid cell key for position
@@ -158,9 +183,15 @@ export class World {
    * Add organism to world with AI
    */
   addOrganism(organism) {
-    // Keep organism within bounds
-    organism.x = Math.max(organism.phenotype.size, Math.min(this.width - organism.phenotype.size, organism.x));
-    organism.y = Math.max(organism.phenotype.size, Math.min(this.height - organism.phenotype.size, organism.y));
+    // Keep organism within bounds (respecting sections if enabled)
+    if (this.separationSections > 1 && organism._assignedSection !== undefined) {
+      const bounds = this.getSectionBounds(organism._assignedSection);
+      organism.x = Math.max(bounds.minX + organism.phenotype.size, Math.min(bounds.maxX - organism.phenotype.size, organism.x));
+      organism.y = Math.max(bounds.minY + organism.phenotype.size, Math.min(bounds.maxY - organism.phenotype.size, organism.y));
+    } else {
+      organism.x = Math.max(organism.phenotype.size, Math.min(this.width - organism.phenotype.size, organism.x));
+      organism.y = Math.max(organism.phenotype.size, Math.min(this.height - organism.phenotype.size, organism.y));
+    }
 
     this.organisms.push(organism);
     this.addToGrid(organism);
@@ -513,26 +544,48 @@ export class World {
   }
 
   /**
-   * Keep organisms within world bounds
+   * Keep organisms within world bounds (and section bounds if separation enabled)
    */
   keepOrganismsInBounds() {
     for (const organism of this.organisms) {
       const size = organism.phenotype.size;
 
-      if (organism.x < size) {
-        organism.x = size;
-        organism.vx = Math.abs(organism.vx) * 0.5;
-      } else if (organism.x > this.width - size) {
-        organism.x = this.width - size;
-        organism.vx = -Math.abs(organism.vx) * 0.5;
-      }
+      // If sections are enabled, enforce section boundaries
+      if (this.separationSections > 1 && organism._assignedSection !== undefined) {
+        const bounds = this.getSectionBounds(organism._assignedSection);
 
-      if (organism.y < size) {
-        organism.y = size;
-        organism.vy = Math.abs(organism.vy) * 0.5;
-      } else if (organism.y > this.height - size) {
-        organism.y = this.height - size;
-        organism.vy = -Math.abs(organism.vy) * 0.5;
+        if (organism.x < bounds.minX + size) {
+          organism.x = bounds.minX + size;
+          organism.vx = Math.abs(organism.vx) * 0.5;
+        } else if (organism.x > bounds.maxX - size) {
+          organism.x = bounds.maxX - size;
+          organism.vx = -Math.abs(organism.vx) * 0.5;
+        }
+
+        if (organism.y < bounds.minY + size) {
+          organism.y = bounds.minY + size;
+          organism.vy = Math.abs(organism.vy) * 0.5;
+        } else if (organism.y > bounds.maxY - size) {
+          organism.y = bounds.maxY - size;
+          organism.vy = -Math.abs(organism.vy) * 0.5;
+        }
+      } else {
+        // Normal world bounds
+        if (organism.x < size) {
+          organism.x = size;
+          organism.vx = Math.abs(organism.vx) * 0.5;
+        } else if (organism.x > this.width - size) {
+          organism.x = this.width - size;
+          organism.vx = -Math.abs(organism.vx) * 0.5;
+        }
+
+        if (organism.y < size) {
+          organism.y = size;
+          organism.vy = Math.abs(organism.vy) * 0.5;
+        } else if (organism.y > this.height - size) {
+          organism.y = this.height - size;
+          organism.vy = -Math.abs(organism.vy) * 0.5;
+        }
       }
     }
   }
@@ -607,6 +660,7 @@ export class World {
 
     const speciesCount = Math.max(1, Math.floor(this.initialSpecies || 1));
     const total = Math.max(0, Math.floor(this.initialPopulation || 0));
+    const sections = Math.max(1, this.separationSections);
 
     // Determine group sizes per species
     const baseCount = Math.floor(total / speciesCount);
@@ -621,13 +675,20 @@ export class World {
       const countForSpecies = baseCount + (remainder > 0 ? 1 : 0);
       if (remainder > 0) remainder--;
 
+      // Assign species to a section (if separation is enabled)
+      const sectionIndex = sections > 1 ? s % sections : 0;
+      const bounds = this.getSectionBounds(sectionIndex);
+
       for (let i = 0; i < countForSpecies; i++) {
-        const x = Math.random() * this.width;
-        const y = Math.random() * this.height;
+        // Spawn within the assigned section
+        const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
+        const y = bounds.minY + Math.random() * (bounds.maxY - bounds.minY);
+
         // Clone base genome so organisms are independent but remain same species
         const genome = baseGenomes[s].clone();
         const organism = new Organism(x, y, genome);
         organism.energy = 50 + Math.random() * 50; // Random initial energy
+        organism._assignedSection = sectionIndex; // Track which section this organism/species belongs to
         this.addOrganism(organism);
         initialOrganisms.push(organism);
       }
@@ -639,16 +700,90 @@ export class World {
     // Spawn initial food as per setting (in clusters for more natural distribution)
     const initialFood = Math.max(0, Math.floor(this.initialFoodCount || 0));
     if (initialFood > 0) {
-      // Spawn food in clusters instead of randomly scattered
-      const clusterCount = Math.ceil(initialFood / 6); // ~6 food items per cluster
-      const foodPerCluster = Math.floor(initialFood / clusterCount);
-      const remainder = initialFood % clusterCount;
+      // If sections are enabled, distribute food across sections
+      if (sections > 1) {
+        const foodPerSection = Math.floor(initialFood / sections);
+        const foodRemainder = initialFood % sections;
 
-      this.spawnRandomFoodClusters(clusterCount, foodPerCluster);
+        for (let s = 0; s < sections; s++) {
+          const foodForSection = foodPerSection + (s < foodRemainder ? 1 : 0);
+          const bounds = this.getSectionBounds(s);
 
-      // Spawn any remainder as single items
-      if (remainder > 0) {
-        this.spawnRandomFood(remainder);
+          // Spawn food clusters within this section
+          const clusterCount = Math.ceil(foodForSection / 6);
+          const foodPerCluster = Math.floor(foodForSection / clusterCount);
+
+          for (let c = 0; c < clusterCount; c++) {
+            const centerX = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
+            const centerY = bounds.minY + Math.random() * (bounds.maxY - bounds.minY);
+            const clusterSize = c < foodForSection % clusterCount ? foodPerCluster + 1 : foodPerCluster;
+            this.spawnFoodCluster(centerX, centerY, clusterSize);
+          }
+        }
+      } else {
+        // No sections - spawn food normally
+        const clusterCount = Math.ceil(initialFood / 6);
+        const foodPerCluster = Math.floor(initialFood / clusterCount);
+        const foodRemainder = initialFood % clusterCount;
+
+        this.spawnRandomFoodClusters(clusterCount, foodPerCluster);
+
+        // Spawn any remainder as single items
+        if (foodRemainder > 0) {
+          this.spawnRandomFood(foodRemainder);
+        }
+      }
+    }
+  }
+
+  /**
+   * Redistribute organisms evenly across sections
+   */
+  redistributeOrganismsToSections() {
+    if (this.separationSections <= 1) {
+      // No sections - remove section assignments
+      for (const organism of this.organisms) {
+        organism._assignedSection = undefined;
+      }
+      return;
+    }
+
+    // Group organisms by species
+    const speciesMap = new Map();
+    for (const organism of this.organisms) {
+      const speciesId = organism.getSpeciesId();
+      if (!speciesMap.has(speciesId)) {
+        speciesMap.set(speciesId, []);
+      }
+      speciesMap.get(speciesId).push(organism);
+    }
+
+    // Assign each species to a section (round-robin)
+    const speciesArray = Array.from(speciesMap.entries());
+    for (let s = 0; s < speciesArray.length; s++) {
+      const [speciesId, organisms] = speciesArray[s];
+      const sectionIndex = s % this.separationSections;
+      const bounds = this.getSectionBounds(sectionIndex);
+
+      // Assign section and relocate organisms
+      for (const organism of organisms) {
+        organism._assignedSection = sectionIndex;
+
+        // Move organism to its assigned section if it's outside
+        if (organism.x < bounds.minX || organism.x > bounds.maxX ||
+            organism.y < bounds.minY || organism.y > bounds.maxY) {
+
+          // Place in random position within the section
+          organism.x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
+          organism.y = bounds.minY + Math.random() * (bounds.maxY - bounds.minY);
+
+          // Reset velocity to avoid immediate wall collision
+          organism.vx = 0;
+          organism.vy = 0;
+
+          // Update spatial grid
+          this.updateGrid(organism);
+        }
       }
     }
   }
@@ -674,6 +809,11 @@ export class World {
     }
     if (params.initialSpecies !== undefined) {
       this.initialSpecies = params.initialSpecies;
+    }
+    if (params.separationSections !== undefined) {
+      this.separationSections = params.separationSections;
+      // Redistribute existing organisms when sections change
+      this.redistributeOrganismsToSections();
     }
   }
 

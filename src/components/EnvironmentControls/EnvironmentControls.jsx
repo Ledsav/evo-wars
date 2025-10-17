@@ -34,7 +34,10 @@ export function EnvironmentControls({ world, onEnvironmentChange }) {
     onEnvironmentChange({ initialSpecies: val });
   };
 
-
+  const handleSeparationChange = (e) => {
+    const val = parseInt(e.target.value);
+    onEnvironmentChange({ separationSections: val });
+  };
 
   return (
     <div className="environment-controls">
@@ -152,6 +155,25 @@ export function EnvironmentControls({ world, onEnvironmentChange }) {
           onChange={handleInitialSpeciesChange}
         />
         <div className="control-description">Number of distinct starting species</div>
+      </div>
+
+      <div className="control-group">
+        <div className="control-header">
+          <label>
+            <span className="control-icon">🔲</span>
+            Separation
+          </label>
+          <span className="control-value">{world.separationSections || 1} {(world.separationSections || 1) === 1 ? 'section' : 'sections'}</span>
+        </div>
+        <input
+          type="range"
+          min="1"
+          max="16"
+          step="1"
+          value={world.separationSections || 1}
+          onChange={handleSeparationChange}
+        />
+        <div className="control-description">Divide world into sections (segregates species)</div>
       </div>
     </div>
   );

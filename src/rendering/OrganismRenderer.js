@@ -821,4 +821,80 @@ export class OrganismRenderer {
       ctx.stroke();
     }
   }
+
+  /**
+   * Render section walls/boundaries for species segregation
+   */
+  static renderSectionWalls(ctx, world) {
+    if (!world || world.separationSections <= 1) return;
+
+    const sections = world.separationSections;
+    const cols = Math.ceil(Math.sqrt(sections));
+    const rows = Math.ceil(sections / cols);
+
+    const sectionWidth = world.width / cols;
+    const sectionHeight = world.height / rows;
+
+    ctx.save();
+
+    // Draw vertical walls
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
+    ctx.shadowBlur = 5;
+
+    for (let i = 1; i < cols; i++) {
+      const x = i * sectionWidth;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, world.height);
+      ctx.stroke();
+
+      // Draw wall segments for visual effect
+      ctx.strokeStyle = 'rgba(200, 200, 255, 0.3)';
+      ctx.lineWidth = 8;
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.lineWidth = 3;
+    }
+
+    // Draw horizontal walls
+    for (let i = 1; i < rows; i++) {
+      const y = i * sectionHeight;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(world.width, y);
+      ctx.stroke();
+
+      // Draw wall segments for visual effect
+      ctx.strokeStyle = 'rgba(200, 200, 255, 0.3)';
+      ctx.lineWidth = 8;
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.lineWidth = 3;
+    }
+
+    // Draw section numbers/labels
+    ctx.shadowBlur = 0;
+    ctx.font = 'bold 14px Arial';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+
+    for (let s = 0; s < sections; s++) {
+      const col = s % cols;
+      const row = Math.floor(s / cols);
+      const x = col * sectionWidth + 10;
+      const y = row * sectionHeight + 10;
+
+      // Draw semi-transparent background for label
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      ctx.fillRect(x - 2, y - 2, 80, 20);
+
+      // Draw label
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.fillText(`Section ${s + 1}`, x, y);
+    }
+
+    ctx.restore();
+  }
 }
