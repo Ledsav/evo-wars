@@ -96,6 +96,10 @@ function App() {
     world.width = newSize.width;
     world.height = newSize.height;
     setWorldSize(newSize);
+
+    // Redistribute food to fit new bounds
+    world.redistributeFood();
+
     forceUpdate({});
   };
 
@@ -119,6 +123,10 @@ function App() {
       organism.x = Math.min(organism.x, newSize.width - 20);
       organism.y = Math.min(organism.y, newSize.height - 20);
     }
+
+    // Redistribute food to fit new bounds
+    world.redistributeFood();
+
     forceUpdate({});
   };
 
@@ -128,11 +136,21 @@ function App() {
     world.width = newSize.width;
     world.height = newSize.height;
     setWorldSize(newSize);
+
+    // Redistribute food to fit new bounds
+    world.redistributeFood();
+
     forceUpdate({});
   };
 
   const handleUpdateSampleFrequency = (frequency) => {
     world.statsTracker.setSampleFrequency(frequency);
+  };
+
+  const handleResetView = () => {
+    if (canvasRef.current && canvasRef.current.resetView) {
+      canvasRef.current.resetView();
+    }
   };
 
   return (
@@ -145,6 +163,7 @@ function App() {
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onZoomReset={handleZoomReset}
+        onResetView={handleResetView}
       />
 
       <div className="main-container">

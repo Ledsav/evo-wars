@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { OrganismRenderer } from '../../rendering/OrganismRenderer';
 
 /**
@@ -7,6 +7,33 @@ import { OrganismRenderer } from '../../rendering/OrganismRenderer';
 export function RadarChart({ organism }) {
   const [thumbnailUrl, setThumbnailUrl] = useState(null);
   const [hoveredTrait, setHoveredTrait] = useState(null);
+  const hoverTimeoutRef = useRef(null);
+
+  // Debounced hover handlers to prevent flickering
+  const handleHoverEnter = (index) => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    setHoveredTrait(index);
+  };
+
+  const handleHoverLeave = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredTrait(null);
+    }, 50);
+  };
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Generate creature thumbnail for center
   useEffect(() => {
@@ -190,19 +217,29 @@ export function RadarChart({ organism }) {
             const point = getPoint(i, trait.value);
             const isHovered = hoveredTrait === i;
             return (
-              <circle
-                key={i}
-                className="radar-point"
-                cx={point.x}
-                cy={point.y}
-                r={isHovered ? 7 : 5}
-                fill={trait.color}
-                stroke="rgba(255, 255, 255, 0.8)"
-                strokeWidth="2"
-                style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
-                onMouseEnter={() => setHoveredTrait(i)}
-                onMouseLeave={() => setHoveredTrait(null)}
-              />
+              <g key={i}>
+                {/* Larger invisible hit area to prevent oscillation */}
+                <circle
+                  cx={point.x}
+                  cy={point.y}
+                  r={10}
+                  fill="transparent"
+                  style={{ cursor: 'pointer' }}
+                  onMouseEnter={() => handleHoverEnter(i)}
+                  onMouseLeave={handleHoverLeave}
+                />
+                {/* Visible point */}
+                <circle
+                  className="radar-point"
+                  cx={point.x}
+                  cy={point.y}
+                  r={isHovered ? 7 : 5}
+                  fill={trait.color}
+                  stroke="rgba(255, 255, 255, 0.8)"
+                  strokeWidth="2"
+                  style={{ pointerEvents: 'none', transition: 'all 0.2s ease' }}
+                />
+              </g>
             );
           })}
         </g>
@@ -243,7 +280,12 @@ export function RadarChart({ organism }) {
             let rectY = labelPos.y + dy - 10;
 
             return (
-              <g key={i}>
+              <g
+                key={i}
+                onMouseEnter={() => handleHoverEnter(i)}
+                onMouseLeave={handleHoverLeave}
+                style={{ cursor: 'pointer' }}
+              >
                 <rect
                   x={rectX}
                   y={rectY}

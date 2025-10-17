@@ -737,6 +737,23 @@ export class World {
   }
 
   /**
+   * Redistribute food to fit within new world bounds
+   */
+  redistributeFood() {
+    for (const food of this.foodParticles) {
+      // Remove from old grid position
+      this.removeFoodFromGrid(food, food.x, food.y);
+
+      // Clamp food position to new world bounds
+      food.x = Math.max(20, Math.min(this.width - 20, food.x));
+      food.y = Math.max(20, Math.min(this.height - 20, food.y));
+
+      // Add to new grid position
+      this.addFoodToGrid(food);
+    }
+  }
+
+  /**
    * Redistribute organisms evenly across sections
    */
   redistributeOrganismsToSections() {

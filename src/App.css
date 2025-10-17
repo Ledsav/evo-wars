@@ -991,6 +991,7 @@ body {
 
 /* Radar Chart Styles */
 .radar-chart-container {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1083,14 +1084,19 @@ body {
 }
 
 .radar-tooltip {
-  margin-top: 16px;
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
   padding: 12px 20px;
   background: #2a2a2a;
   border: 1px solid #444444;
   border-radius: 6px;
   text-align: center;
   min-width: 200px;
+  pointer-events: none;
   animation: tooltipSlideIn 0.2s ease;
+  z-index: 10;
 }
 
 @keyframes tooltipSlideIn {
@@ -1588,6 +1594,22 @@ body {
   font-weight: 600;
   min-width: 50px;
   text-align: center;
+}
+
+.reset-view-button {
+  background: #3a3a3a !important;
+  border-color: #2196f3 !important;
+  color: #2196f3 !important;
+}
+
+.reset-view-button:hover {
+  background: #4a4a4a !important;
+  border-color: #42a5f5 !important;
+  transform: translateY(-1px);
+}
+
+.reset-view-button span {
+  font-size: 0.9rem;
 }
 
 .stat-display {
