@@ -244,6 +244,39 @@ export function Statistics({ statsTracker, onUpdateSampleFrequency }) {
             Lower = better performance, Higher = more detail
           </div>
         </label>
+
+        {/* Export controls */}
+        <div className="export-controls">
+          <div className="export-label">Export Data:</div>
+          <button
+            className="export-button"
+            onClick={() => statsTracker.downloadData('json')}
+            disabled={dataPoints === 0}
+            title="Download statistics as JSON file"
+          >
+            📥 JSON
+          </button>
+          <button
+            className="export-button"
+            onClick={() => statsTracker.downloadData('csv')}
+            disabled={dataPoints === 0}
+            title="Download statistics as CSV file (Excel compatible)"
+          >
+            📊 CSV
+          </button>
+          <button
+            className="export-button"
+            onClick={() => {
+              const summary = statsTracker.getSummary();
+              console.log('Statistics Summary:', summary);
+              alert('Summary logged to console. Press F12 to view.');
+            }}
+            disabled={dataPoints === 0}
+            title="View statistical summary in console"
+          >
+            📈 Summary
+          </button>
+        </div>
       </div>
 
       {/* Charts */}

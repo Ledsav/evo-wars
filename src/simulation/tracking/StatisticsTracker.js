@@ -159,4 +159,190 @@ export class StatisticsTracker {
   getDataPointCount() {
     return this.data.time.length;
   }
+
+  /**
+   * Export statistics data as JSON
+   * @returns {string} JSON string of all statistics data
+   */
+  exportJSON() {
+    return JSON.stringify({
+      metadata: {
+        exportTime: Date.now(),
+        dataPoints: this.data.time.length,
+        sampleFrequency: this.sampleFrequency,
+        maxDataPoints: this.maxDataPoints
+      },
+      data: this.data
+    }, null, 2);
+  }
+
+  /**
+   * Export statistics data as CSV
+   * @returns {string} CSV formatted statistics data
+   */
+  exportCSV() {
+    const headers = Object.keys(this.data);
+    const rows = [];
+
+    // Add header row
+    rows.push(headers.join(','));
+
+    // Add data rows
+    const dataLength = this.data.time.length;
+    for (let i = 0; i < dataLength; i++) {
+      const row = headers.map(key => this.data[key][i]);
+      rows.push(row.join(','));
+    }
+
+    return rows.join('\n');
+  }
+
+  /**
+   * Download statistics as a file
+   * @param {string} format - 'json' or 'csv'
+   * @param {string} filename - Optional custom filename
+   */
+  downloadData(format = 'json', filename = null) {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    const defaultFilename = `evo-wars-stats-${timestamp}.${format}`;
+    const finalFilename = filename || defaultFilename;
+
+    let content, mimeType;
+
+    if (format === 'json') {
+      content = this.exportJSON();
+      mimeType = 'application/json';
+    } else if (format === 'csv') {
+      content = this.exportCSV();
+      mimeType = 'text/csv';
+    } else {
+      throw new Error(`Unsupported format: ${format}`);
+    }
+
+    // Create blob and download
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = finalFilename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  /**
+   * Get statistical summary of the data
+   * @returns {Object} Summary statistics for each metric
+   */
+  getSummary() {
+    const summary = {};
+
+    for (const [key, values] of Object.entries(this.data)) {
+      if (values.length === 0) {
+        summary[key] = {
+          min: 0,
+          max: 0,
+          mean: 0,
+          current: 0,
+          total: 0
+        };
+        continue;
+      }
+
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const sum = values.reduce((acc, val) => acc + val, 0);
+      const mean = sum / values.length;
+      const current = values[values.length - 1];
+
+      summary[key] = {
+        min: Number(min.toFixed(2)),
+        max: Number(max.toFixed(2)),
+        mean: Number(mean.toFixed(2)),
+        current: Number(current.toFixed(2)),
+        total: Number(sum.toFixed(2))
+      };
+    }
+
+    return summary;
+  }
+
+  /**
+   * Downsample data to reduce number of points
+   * Useful for long-running simulations
+   * @param {number} targetPoints - Target number of data points
+   */
+  downsample(targetPoints = 250) {
+    const currentLength = this.data.time.length;
+
+    if (currentLength <= targetPoints) {
+      return; // No need to downsample
+    }
+
+    const step = Math.floor(currentLength / targetPoints);
+    const newData = {};
+
+    // Initialize new data arrays
+    for (const key in this.data) {
+      newData[key] = [];
+    }
+
+    // Sample every 'step' points
+    for (let i = 0; i < currentLength; i += step) {
+      for (const key in this.data) {
+        newData[key].push(this.data[key][i]);
+      }
+    }
+
+    // Always include the last data point
+    const lastIndex = currentLength - 1;
+    if ((lastIndex % step) !== 0) {
+      for (const key in this.data) {
+        newData[key].push(this.data[key][lastIndex]);
+      }
+    }
+
+    this.data = newData;
+  }
+
+  /**
+   * Get data for a specific time range
+   * @param {number} startTime - Start time in ms
+   * @param {number} endTime - End time in ms
+   * @returns {Object} Filtered data object
+   */
+  getDataInRange(startTime, endTime) {
+    const filteredData = {};
+
+    // Initialize arrays
+    for (const key in this.data) {
+      filteredData[key] = [];
+    }
+
+    // Filter data points within range
+    for (let i = 0; i < this.data.time.length; i++) {
+      const time = this.data.time[i];
+      if (time >= startTime && time <= endTime) {
+        for (const key in this.data) {
+          filteredData[key].push(this.data[key][i]);
+        }
+      }
+    }
+
+    return filteredData;
+  }
+
+  /**
+   * Set maximum data points to store
+   * @param {number} maxPoints - Maximum number of data points
+   */
+  setMaxDataPoints(maxPoints) {
+    this.maxDataPoints = Math.max(10, maxPoints);
+
+    // Trim existing data if needed
+    if (this.data.time.length > this.maxDataPoints) {
+      this.downsample(this.maxDataPoints);
+    }
+  }
 }

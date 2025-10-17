@@ -94,6 +94,70 @@
   font-style: italic;
 }
 
+/* Export controls */
+.export-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #444444;
+}
+
+.export-label {
+  font-size: 13px;
+  color: #cccccc;
+  font-weight: 500;
+}
+
+.export-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #ffffff;
+  background: #3a3a3a;
+  border: 1px solid #555555;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.export-button:hover:not(:disabled) {
+  background: #4a4a4a;
+  border-color: #666666;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.export-button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.export-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.export-button:nth-child(2) {
+  background: linear-gradient(135deg, #1e88e5 0%, #1565c0 100%);
+  border-color: #1565c0;
+}
+
+.export-button:nth-child(3) {
+  background: linear-gradient(135deg, #43a047 0%, #2e7d32 100%);
+  border-color: #2e7d32;
+}
+
+.export-button:nth-child(4) {
+  background: linear-gradient(135deg, #fb8c00 0%, #e65100 100%);
+  border-color: #e65100;
+}
+
 /* Metric toggles */
 .metric-toggles {
   display: flex;
