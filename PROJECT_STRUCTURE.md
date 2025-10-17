@@ -182,15 +182,19 @@ The game uses a biological, cell-inspired aesthetic:
 
 ## Future Enhancements
 
-Potential additions:
-- Sexual reproduction (gene crossover)
-- More complex phenotypes
-- Environmental pressures (temperature, toxins)
-- Predator/prey behaviors
-- Evolution trees/lineage tracking
-- Gene regulation (promoters, enhancers)
-- Epigenetics
-- Multi-cellular organisms
+## Planned Enhancements (TODO)
+
+- [ ] Sexual reproduction (gene crossover) — Two‑parent mating, meiosis‑style recombination and inheritance. Priority: High.
+- [ ] Environmental pressures (temperature, toxins) — Global/local environment variables that affect fitness and selection. Priority: High.
+- [ ] Gene regulation (promoters, enhancers) — Regulatory sequences and expression control mechanics. Priority: High.
+- [ ] More complex phenotypes — Compose traits from multiple genes/proteins and add emergent interactions. Priority: Medium.
+- [ ] Epigenetics — Methylation/acetylation effects, reversible modifications and partial inheritance. Priority: Medium.
+- [ ] Spider chart for attributes per specie
+- [ ] Multi-cellular organisms — Cell adhesion, differentiation and basic body plans. Priority: Long‑term.
+- [ ] Predator/prey behaviors — Hunting/fleeing AI, energy transfer and trophic dynamics. Priority: Medium. (Status: in progress)
+- [x] Evolution trees / lineage tracking — Implemented.
+
+
 
 ## Running the Game
 

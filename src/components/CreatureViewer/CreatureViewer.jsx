@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { OrganismRenderer } from '../rendering/OrganismRenderer';
+import { OrganismRenderer } from '../../rendering/OrganismRenderer';
+import { InfoIcon, CompareIcon } from '../shared/Icons/Icons';
 import { GenomePopup } from './GenomePopup';
-import { InfoIcon } from './Icons';
+import { ComparisonPopup } from './ComparisonPopup';
 
 // Exact renderer thumbnail -> data URL, cached per species representative and DPR
 function SpeciesThumbnailExact({ speciesId, organism, size = 40, thumbCacheRef }) {
@@ -67,6 +68,8 @@ function SpeciesThumbnailExact({ speciesId, organism, size = 40, thumbCacheRef }
 export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOverlays }) {
   const [selectedSpecies, setSelectedSpecies] = useState(null);
   const [genomePopupOrganism, setGenomePopupOrganism] = useState(null);
+  const [selectedForComparison, setSelectedForComparison] = useState(new Set());
+  const [comparisonOrganisms, setComparisonOrganisms] = useState(null);
   // Persist a stable representative per species across renders
   const repMapRef = useRef({});
   // Cache generated thumbnails per species representative to avoid re-rendering
@@ -79,6 +82,43 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
     if (onSpeciesHighlight) {
       onSpeciesHighlight(newSelection);
     }
+  };
+
+  // Handle checkbox selection for comparison
+  const handleComparisonToggle = (speciesId) => {
+    const newSelection = new Set(selectedForComparison);
+    if (newSelection.has(speciesId)) {
+      newSelection.delete(speciesId);
+    } else {
+      newSelection.add(speciesId);
+    }
+    setSelectedForComparison(newSelection);
+  };
+
+  // Open comparison popup
+  const handleOpenComparison = () => {
+    const species = getSpeciesGroups();
+    const organisms = species
+      .filter(sp => selectedForComparison.has(sp.id))
+      .map(sp => sp.representative);
+    setComparisonOrganisms(organisms);
+  };
+
+  // Close comparison popup
+  const handleCloseComparison = () => {
+    setComparisonOrganisms(null);
+  };
+
+  // Select all species for comparison
+  const handleSelectAll = () => {
+    const species = getSpeciesGroups();
+    const allSpeciesIds = new Set(species.map(sp => sp.id));
+    setSelectedForComparison(allSpeciesIds);
+  };
+
+  // Deselect all species
+  const handleDeselectAll = () => {
+    setSelectedForComparison(new Set());
   };
 
   // Group organisms by species
@@ -128,49 +168,91 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
     <div className="creature-viewer">
       <h2>Controls</h2>
 
-      <div className="overlay-toggles" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div className="overlay-toggles">
+        <label className="overlay-toggle-item">
           <input
             type="checkbox"
+            className="overlay-checkbox"
             checked={!!(overlays && overlays.showSensory)}
             onChange={e => onUpdateOverlays && onUpdateOverlays({ showSensory: e.target.checked })}
           />
-          Show sensory ranges
+          <span className="overlay-label">Show sensory ranges</span>
         </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <label className="overlay-toggle-item">
           <input
             type="checkbox"
+            className="overlay-checkbox"
             checked={!!(overlays && overlays.showRepro)}
             onChange={e => onUpdateOverlays && onUpdateOverlays({ showRepro: e.target.checked })}
           />
-          Show reproduction readiness
+          <span className="overlay-label">Show reproduction readiness</span>
         </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <label className="overlay-toggle-item">
           <input
             type="checkbox"
+            className="overlay-checkbox"
             checked={!!(overlays && overlays.showSpeed)}
             onChange={e => onUpdateOverlays && onUpdateOverlays({ showSpeed: e.target.checked })}
           />
-          Show speed trails
+          <span className="overlay-label">Show speed trails</span>
         </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <label className="overlay-toggle-item">
           <input
             type="checkbox"
+            className="overlay-checkbox"
             checked={!!(overlays && overlays.showMetabolism)}
             onChange={e => onUpdateOverlays && onUpdateOverlays({ showMetabolism: e.target.checked })}
           />
-          Show metabolism glow
+          <span className="overlay-label">Show metabolism glow</span>
         </label>
       </div>
 
-      <h3>Species ({species.length})</h3>
+      <div className="species-header">
+        <h3>Species ({species.length})</h3>
+        <div className="species-header-actions">
+          <div className="select-all-controls">
+            <button
+              className="select-all-btn"
+              onClick={handleSelectAll}
+              title="Select all species"
+            >
+              Select All
+            </button>
+            <button
+              className="select-all-btn"
+              onClick={handleDeselectAll}
+              title="Deselect all species"
+            >
+              Clear
+            </button>
+          </div>
+          {selectedForComparison.size > 0 && (
+            <button
+              className="compare-button"
+              onClick={handleOpenComparison}
+              title={`Compare ${selectedForComparison.size} species`}
+            >
+              <CompareIcon size={18} />
+              Compare ({selectedForComparison.size})
+            </button>
+          )}
+        </div>
+      </div>
 
       <div className="species-list">
         {species.map((sp) => (
           <div
             key={sp.id}
-            className={`species-item ${selectedSpecies === sp.id ? 'selected' : ''}`}
+            className={`species-item ${selectedSpecies === sp.id ? 'selected' : ''} ${selectedForComparison.has(sp.id) ? 'selected-for-comparison' : ''}`}
           >
+            <input
+              type="checkbox"
+              className="species-checkbox"
+              checked={selectedForComparison.has(sp.id)}
+              onChange={() => handleComparisonToggle(sp.id)}
+              onClick={(e) => e.stopPropagation()}
+              title="Select for comparison"
+            />
             <div
               className="species-item-main"
               onClick={() => handleSpeciesClick(sp.id)}
@@ -198,6 +280,11 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
       <GenomePopup
         organism={genomePopupOrganism}
         onClose={() => setGenomePopupOrganism(null)}
+      />
+
+      <ComparisonPopup
+        organisms={comparisonOrganisms}
+        onClose={handleCloseComparison}
       />
     </div>
   );

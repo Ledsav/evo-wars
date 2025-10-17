@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import './App.css';
-import { CreatureViewer } from './components/CreatureViewer';
-import { EnvironmentControls } from './components/EnvironmentControls';
-import { FamilyTree } from './components/FamilyTree';
-import { SimulationCanvas } from './components/SimulationCanvas';
-import { SimulationControls } from './components/SimulationControls';
-import { Statistics } from './components/Statistics';
-import { World } from './core/world/World';
+import { CreatureViewer } from './components/CreatureViewer/CreatureViewer';
+import { EnvironmentControls } from './components/EnvironmentControls/EnvironmentControls';
+import { FamilyTree } from './components/FamilyTree/FamilyTree';
+import { SimulationCanvas } from './components/SimulationCanvas/SimulationCanvas';
+import { SimulationControls } from './components/SimulationControls/SimulationControls';
+import { Statistics } from './components/Statistics/Statistics';
+import { World } from './simulation/world/World';
 import { GameEngine } from './engine/GameEngine';
 
 const WIDTH_RESOLUTIONS = {low: 800, medium: 1280, high: 1920, ultra: 2560};

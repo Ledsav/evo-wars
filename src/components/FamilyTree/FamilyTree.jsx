@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { OrganismRenderer } from '../rendering/OrganismRenderer';
+import { OrganismRenderer } from '../../rendering/OrganismRenderer';
 import './FamilyTree.css';
 
 /**

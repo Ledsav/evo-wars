@@ -68,3 +68,23 @@ export function DNAIcon({ size = 20, className = '' }) {
     </svg>
   );
 }
+
+export function CompareIcon({ size = 20, className = '' }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <circle cx="8" cy="8" r="6" />
+      <circle cx="16" cy="16" r="6" />
+      <line x1="13" y1="11" x2="11" y2="13" />
+    </svg>
+  );
+}

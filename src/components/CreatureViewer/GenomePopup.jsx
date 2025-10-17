@@ -1,5 +1,6 @@
 import { createPortal } from 'react-dom';
-import { CloseIcon, DNAIcon } from './Icons';
+import { CloseIcon, DNAIcon } from '../shared/Icons/Icons';
+import { RadarChart } from './RadarChart';
 
 /**
  * GenomePopup - Detailed genome viewer modal
@@ -73,6 +74,9 @@ export function GenomePopup({ organism, onClose }) {
         </div>
 
         <div className="genome-popup-content">
+          {/* Radar Chart Section */}
+          <RadarChart organism={organism} />
+
           <div className="genome-overview">
             <div className="overview-stat">
               <span className="stat-label">Species ID:</span>

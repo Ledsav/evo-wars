@@ -1,0 +1,117 @@
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
+import { CloseIcon, CompareIcon } from '../shared/Icons/Icons';
+import { RadarChart } from './RadarChart';
+import { OverlayRadarChart } from './OverlayRadarChart';
+
+/**
+ * ComparisonPopup - Side-by-side comparison of organism radar charts
+ */
+export function ComparisonPopup({ organisms, onClose }) {
+  const [viewMode, setViewMode] = useState('multiple'); // 'single' or 'multiple'
+
+  // Don't render if no organisms selected
+  if (!organisms || organisms.length === 0) return null;
+
+  return createPortal(
+    <div className="comparison-popup-overlay" onClick={onClose}>
+      <div className="comparison-popup" onClick={(e) => e.stopPropagation()}>
+        <div className="comparison-popup-header">
+          <div className="comparison-popup-title">
+            <CompareIcon size={24} />
+            <h2>Species Comparison ({organisms.length})</h2>
+          </div>
+
+          <div className="view-mode-toggle">
+            <button
+              className={`view-mode-btn ${viewMode === 'single' ? 'active' : ''}`}
+              onClick={() => setViewMode('single')}
+              title="Overlay view - all species on one chart"
+            >
+              Overlay
+            </button>
+            <button
+              className={`view-mode-btn ${viewMode === 'multiple' ? 'active' : ''}`}
+              onClick={() => setViewMode('multiple')}
+              title="Side-by-side view - separate charts"
+            >
+              Side-by-Side
+            </button>
+          </div>
+
+          <button className="comparison-popup-close" onClick={onClose}>
+            <CloseIcon size={24} />
+          </button>
+        </div>
+
+        <div className="comparison-popup-content">
+          {viewMode === 'single' ? (
+            <div className="comparison-overlay-view">
+              <OverlayRadarChart organisms={organisms} />
+              <div className="comparison-legend">
+                {organisms.map((organism, index) => (
+                  <div key={organism.id || index} className="legend-item">
+                    <div
+                      className="legend-color"
+                      style={{ backgroundColor: getOrganismColor(index) }}
+                    />
+                    <span className="legend-label">
+                      Species {organism.getSpeciesId ? organism.getSpeciesId().toString().slice(0, 8) : 'Unknown'}
+                    </span>
+                    <span className="legend-stats">
+                      Age: {((organism.age || 0) / 1000).toFixed(1)}s |
+                      Energy: {(organism.energy || 0).toFixed(0)}/{organism.maxEnergy || 100}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="comparison-grid">
+              {organisms.map((organism, index) => (
+                <div key={organism.id || index} className="comparison-item">
+                  <div className="comparison-item-header">
+                    <h3>
+                      Species {organism.getSpeciesId ? organism.getSpeciesId().toString().slice(0, 8) : 'Unknown'}
+                    </h3>
+                    <div className="comparison-stats">
+                      <span className="comparison-stat">
+                        Age: {((organism.age || 0) / 1000).toFixed(1)}s
+                      </span>
+                      <span className="comparison-stat">
+                        Energy: {(organism.energy || 0).toFixed(0)}/{organism.maxEnergy || 100}
+                      </span>
+                    </div>
+                  </div>
+                  <RadarChart organism={organism} />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {organisms.length < 2 && (
+            <div className="comparison-notice">
+              <p>Select at least 2 species to compare their traits effectively.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// Helper function to get consistent colors for organisms
+function getOrganismColor(index) {
+  const colors = [
+    '#4ade80', // Green
+    '#60a5fa', // Blue
+    '#a78bfa', // Purple
+    '#f472b6', // Pink
+    '#fb923c', // Orange
+    '#34d399', // Emerald
+    '#ef4444', // Red
+    '#fbbf24', // Yellow
+  ];
+  return colors[index % colors.length];
+}

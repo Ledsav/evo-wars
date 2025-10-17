@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
-import { OrganismRenderer } from '../rendering/OrganismRenderer';
+import { OrganismRenderer } from '../../rendering/OrganismRenderer';
 
 /**
  * SimulationCanvas - Renders the game world

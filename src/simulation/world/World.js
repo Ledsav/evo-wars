@@ -1,9 +1,9 @@
-import { Genome } from '../genetics/Genome.js';
-import { Organism } from '../organisms/Organism.js';
-import { OrganismAI } from '../organisms/OrganismAI.js';
-import { ObjectPool } from '../../utils/ObjectPool.js';
-import { StatisticsTracker } from '../../utils/StatisticsTracker.js';
-import { GenealogyTracker } from '../../utils/GenealogyTracker.js';
+import { Genome } from '../../core/genetics/Genome.js';
+import { Organism } from '../../core/organisms/Organism.js';
+import { OrganismAI } from '../ai/OrganismAI.js';
+import { ObjectPool } from '../../engine/performance/ObjectPool.js';
+import { StatisticsTracker } from '../tracking/StatisticsTracker.js';
+import { GenealogyTracker } from '../tracking/GenealogyTracker.js';
 
 /**
  * World - Contains all organisms and handles simulation
