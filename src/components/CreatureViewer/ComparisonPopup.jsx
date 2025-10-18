@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CloseIcon, CompareIcon } from '../shared/Icons/Icons';
-import { RadarChart } from './RadarChart';
 import { OverlayRadarChart } from './OverlayRadarChart';
+import { RadarChart } from './RadarChart';
 
 /**
  * ComparisonPopup - Side-by-side comparison of organism radar charts
@@ -49,43 +49,50 @@ export function ComparisonPopup({ organisms, onClose }) {
             <div className="comparison-overlay-view">
               <OverlayRadarChart organisms={organisms} />
               <div className="comparison-legend">
-                {organisms.map((organism, index) => (
-                  <div key={organism.id || index} className="legend-item">
-                    <div
-                      className="legend-color"
-                      style={{ backgroundColor: getOrganismColor(index) }}
-                    />
-                    <span className="legend-label">
-                      Species {organism.getSpeciesId ? organism.getSpeciesId().toString().slice(0, 8) : 'Unknown'}
-                    </span>
-                    <span className="legend-stats">
-                      Age: {((organism.age || 0) / 1000).toFixed(1)}s |
-                      Energy: {(organism.energy || 0).toFixed(0)}/{organism.maxEnergy || 100}
-                    </span>
-                  </div>
-                ))}
+                {organisms.map((organism, index) => {
+                  const info = typeof organism.getSpeciesInfo === 'function' ? organism.getSpeciesInfo() : null;
+                  const label = info ? `${info.emoji} ${info.name}` : `Species ${organism.id ?? index}`;
+                  const code = info?.code ? ` (${info.code})` : '';
+                  return (
+                    <div key={organism.id || index} className="legend-item">
+                      <div
+                        className="legend-color"
+                        style={{ backgroundColor: getOrganismColor(index) }}
+                      />
+                      <span className="legend-label">
+                        {label}{code}
+                      </span>
+                      <span className="legend-stats">
+                        Age: {((organism.age || 0) / 1000).toFixed(1)}s |
+                        Energy: {(organism.energy || 0).toFixed(0)}/{organism.maxEnergy || 100}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : (
             <div className="comparison-grid">
-              {organisms.map((organism, index) => (
-                <div key={organism.id || index} className="comparison-item">
-                  <div className="comparison-item-header">
-                    <h3>
-                      Species {organism.getSpeciesId ? organism.getSpeciesId().toString().slice(0, 8) : 'Unknown'}
-                    </h3>
-                    <div className="comparison-stats">
-                      <span className="comparison-stat">
-                        Age: {((organism.age || 0) / 1000).toFixed(1)}s
-                      </span>
-                      <span className="comparison-stat">
-                        Energy: {(organism.energy || 0).toFixed(0)}/{organism.maxEnergy || 100}
-                      </span>
+              {organisms.map((organism, index) => {
+                const info = typeof organism.getSpeciesInfo === 'function' ? organism.getSpeciesInfo() : null;
+                const title = info ? `${info.emoji} ${info.name}${info.code ? ` (${info.code})` : ''}` : `Species ${organism.id ?? index}`;
+                return (
+                  <div key={organism.id || index} className="comparison-item">
+                    <div className="comparison-item-header">
+                      <h3>{title}</h3>
+                      <div className="comparison-stats">
+                        <span className="comparison-stat">
+                          Age: {((organism.age || 0) / 1000).toFixed(1)}s
+                        </span>
+                        <span className="comparison-stat">
+                          Energy: {(organism.energy || 0).toFixed(0)}/{organism.maxEnergy || 100}
+                        </span>
+                      </div>
                     </div>
+                    <RadarChart organism={organism} />
                   </div>
-                  <RadarChart organism={organism} />
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 

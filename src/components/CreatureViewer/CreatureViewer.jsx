@@ -1,15 +1,15 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { OrganismRenderer } from '../../rendering/OrganismRenderer';
-import { InfoIcon, CompareIcon } from '../shared/Icons/Icons';
-import { GenomePopup } from './GenomePopup';
+import { CompareIcon, InfoIcon } from '../shared/Icons/Icons';
 import { ComparisonPopup } from './ComparisonPopup';
+import { GenomePopup } from './GenomePopup';
 
 // Exact renderer thumbnail -> data URL, cached per species representative and DPR
 function SpeciesThumbnailExact({ speciesId, organism, size = 40, thumbCacheRef }) {
   // Derive stable keys to avoid effect loops
   const repId = organism && typeof organism.id !== 'undefined'
     ? organism.id
-    : (organism && typeof organism.getSpeciesId === 'function' ? organism.getSpeciesId() : 'unknown');
+    : (organism && typeof organism.name === 'function' ? organism.name : 'unknown');
   const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) ? window.devicePixelRatio : 1;
 
   // Seed initial URL from cache synchronously to avoid a blink
@@ -287,7 +287,12 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
             >
               <SpeciesThumbnailExact speciesId={sp.id} organism={sp.representative} size={40} thumbCacheRef={thumbCacheRef} />
               <div className="species-info">
-                <div className="species-name">Species {sp.id.toString().slice(0, 6)}</div>
+                <div className="species-name">
+                  {(() => {
+                    const speciesInfo = sp.representative.getSpeciesInfo();
+                    return `${speciesInfo.emoji} ${speciesInfo.name}`;
+                  })()}
+                </div>
                 <div className="species-count">Pop: {sp.organisms.length}</div>
               </div>
             </div>

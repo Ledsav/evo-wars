@@ -1,9 +1,10 @@
 import { Genome } from '../../core/genetics/Genome.js';
 import { Organism } from '../../core/organisms/Organism.js';
-import { OrganismAI } from '../ai/OrganismAI.js';
 import { ObjectPool } from '../../engine/performance/ObjectPool.js';
-import { StatisticsTracker } from '../tracking/StatisticsTracker.js';
+import { OrganismAI } from '../ai/OrganismAI.js';
+import { SpeciesNaming } from '../species/SpeciesNaming.js';
 import { GenealogyTracker } from '../tracking/GenealogyTracker.js';
+import { StatisticsTracker } from '../tracking/StatisticsTracker.js';
 
 /**
  * World - Contains all organisms and handles simulation
@@ -60,6 +61,11 @@ export class World {
 
     // Combat statistics
     this.combatKills = 0;
+
+    // Species tracking for phylotype-based speciation
+    this.speciesFounders = new Map(); // Map of organism ID -> organism (species founders)
+    this.speciationEvents = []; // Log of speciation events
+    this.speciesNames = new Map(); // Map of founder ID -> {name, code, emoji}
   }
 
 
@@ -196,6 +202,23 @@ export class World {
     this.organisms.push(organism);
     this.addToGrid(organism);
 
+    // Track species founders and assign species name
+    if (organism.speciesFounderId === organism.id) {
+      this.speciesFounders.set(organism.id, organism);
+
+      // Generate species name if not already named
+      if (!this.speciesNames.has(organism.id)) {
+        const speciesInfo = this.registerSpeciesName(organism);
+        organism.setSpeciesInfo(speciesInfo);
+      } else {
+        organism.setSpeciesInfo(this.speciesNames.get(organism.id));
+      }
+    } else {
+      // Not a founder - inherit species info from founder
+      const speciesInfo = this.getSpeciesName(organism.speciesFounderId);
+      organism.setSpeciesInfo(speciesInfo);
+    }
+
     // Create AI for organism if not player
     if (!organism.isPlayer) {
       this.organismAIs.set(organism, new OrganismAI(organism, this));
@@ -211,6 +234,78 @@ export class World {
       this.organisms.splice(index, 1);
       this.removeFromGrid(organism);
       this.organismAIs.delete(organism);
+
+      // Remove from species founders if it was one
+      if (organism.speciesFounderId === organism.id) {
+        this.speciesFounders.delete(organism.id);
+      }
+    }
+  }
+
+  /**
+   * Get organism by ID (for species founder lookup)
+   */
+  getOrganismById(id) {
+    // Check species founders first (faster lookup)
+    if (this.speciesFounders.has(id)) {
+      return this.speciesFounders.get(id);
+    }
+
+    // Search all organisms
+    return this.organisms.find(org => org.id === id);
+  }
+
+  /**
+   * Register a species name for a founder organism
+   */
+  registerSpeciesName(founder) {
+    const name = SpeciesNaming.generateName(founder.phenotype, founder.id);
+    const code = SpeciesNaming.generateCode(name, founder.id);
+    const emoji = SpeciesNaming.getSpeciesEmoji(founder.phenotype);
+
+    this.speciesNames.set(founder.id, { name, code, emoji });
+    return { name, code, emoji };
+  }
+
+  /**
+   * Get species name for a founder ID
+   */
+  getSpeciesName(founderId) {
+    return this.speciesNames.get(founderId) || {
+      name: 'Unknown Species',
+      code: 'XX-000',
+      emoji: '🦠'
+    };
+  }
+
+  /**
+   * Handle speciation event
+   * Called when an organism becomes a new species founder
+   */
+  onSpeciationEvent(newFounder, oldSpeciesId) {
+    // Add to founders map
+    this.speciesFounders.set(newFounder.id, newFounder);
+
+    // Generate species name
+    const speciesInfo = this.registerSpeciesName(newFounder);
+    const parentSpeciesInfo = this.getSpeciesName(oldSpeciesId);
+
+    // Log event
+    this.speciationEvents.push({
+      time: this.time,
+      founderId: newFounder.id,
+      parentSpeciesId: oldSpeciesId,
+      phenotype: { ...newFounder.phenotype },
+      speciesName: speciesInfo.name,
+      parentSpeciesName: parentSpeciesInfo.name
+    });
+
+    // Console log the speciation event
+    console.log(`🧬 SPECIATION! ${speciesInfo.emoji} "${speciesInfo.name}" (${speciesInfo.code}) evolved from "${parentSpeciesInfo.name}"`);
+
+    // Keep log from growing too large (keep last 100 events)
+    if (this.speciationEvents.length > 100) {
+      this.speciationEvents.shift();
     }
   }
 
@@ -679,6 +774,8 @@ export class World {
       const sectionIndex = sections > 1 ? s % sections : 0;
       const bounds = this.getSectionBounds(sectionIndex);
 
+      let speciesFounderId = null; // Track the founder ID for this species
+
       for (let i = 0; i < countForSpecies; i++) {
         // Spawn within the assigned section
         const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
@@ -686,7 +783,19 @@ export class World {
 
         // Clone base genome so organisms are independent but remain same species
         const genome = baseGenomes[s].clone();
-        const organism = new Organism(x, y, genome);
+
+        // Create organism with founder ID
+        // First organism (speciesFounderId=null): becomes its own founder
+        // Subsequent organisms: inherit the first organism's ID as founder
+        const organism = new Organism(x, y, genome, null, speciesFounderId);
+
+        // Capture the first organism's ID as the species founder
+        if (speciesFounderId === null) {
+          speciesFounderId = organism.id;
+          const speciesInfo = this.getSpeciesName(organism.id);
+          console.log(`${speciesInfo.emoji} Species ${s + 1}/${speciesCount}: "${speciesInfo.name}" (${speciesInfo.code}) - ${countForSpecies} organisms`);
+        }
+
         organism.energy = 50 + Math.random() * 50; // Random initial energy
         organism._assignedSection = sectionIndex; // Track which section this organism/species belongs to
         this.addOrganism(organism);
@@ -734,6 +843,17 @@ export class World {
         }
       }
     }
+
+    // Log initialization summary
+    const speciesNamesList = Array.from(this.speciesFounders.keys())
+      .map(id => {
+        const info = this.getSpeciesName(id);
+        return `${info.emoji} ${info.name}`;
+      })
+      .join(', ');
+
+    console.log(`✅ Initialized ${total} organisms across ${speciesCount} species`);
+    console.log(`   Species: ${speciesNamesList}`);
   }
 
   /**
@@ -778,7 +898,7 @@ export class World {
     // Assign each species to a section (round-robin)
     const speciesArray = Array.from(speciesMap.entries());
     for (let s = 0; s < speciesArray.length; s++) {
-      const [speciesId, organisms] = speciesArray[s];
+      const [, organisms] = speciesArray[s];
       const sectionIndex = s % this.separationSections;
       const bounds = this.getSectionBounds(sectionIndex);
 
@@ -858,6 +978,14 @@ export class World {
     this.statsTracker.clear();
     this.genealogyTracker.clear();
     this.combatKills = 0;
+
+    // Clear species tracking
+    this.speciesFounders.clear();
+    this.speciationEvents = [];
+    this.speciesNames.clear();
+
+    // Reset organism ID counter for clean restarts
+    Organism.nextId = 1;
   }
 
   /**

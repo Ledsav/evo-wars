@@ -516,8 +516,8 @@ export class OrganismRenderer {
    * Render species label above highlighted organism
    */
   static renderSpeciesLabel(ctx, organism) {
-    const speciesId = organism.getSpeciesId().toString().slice(0, 6);
-    const label = `Species ${speciesId}`;
+    const info = typeof organism.getSpeciesInfo === 'function' ? organism.getSpeciesInfo() : null;
+    const label = info ? `${info.emoji} ${info.name}${info.code ? ` (${info.code})` : ''}` : `Species ${organism.getSpeciesId().toString().slice(0, 6)}`;
 
     ctx.save();
     ctx.font = 'bold 12px Arial';
@@ -527,8 +527,8 @@ export class OrganismRenderer {
     const x = organism.x;
     const y = organism.y - organism.phenotype.size - 20;
 
-    // Background
-    const metrics = ctx.measureText(label);
+  // Background
+  const metrics = ctx.measureText(label);
     const padding = 4;
     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
     ctx.fillRect(

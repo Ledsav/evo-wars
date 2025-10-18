@@ -97,6 +97,8 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
     // Draw nodes
     let hoveredNodeData = null; // Store hovered node data for later rendering
 
+    const truncate = (text, max) => (text && text.length > max ? text.slice(0, max - 1) + '…' : text);
+
     for (const level of levelPositions) {
       for (const { node, x, y } of level) {
         // Use smaller radius for extinct nodes
@@ -211,7 +213,12 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
         if (node.isExtinctGroup) {
           labelText = `${node.extinctCount} extinct`;
         } else {
-          labelText = `${node.id.toString().slice(0, node.extinct ? 4 : 6)}`;
+          const info = node.representative && typeof node.representative.getSpeciesInfo === 'function'
+            ? node.representative.getSpeciesInfo()
+            : null;
+          const base = info ? `${info.emoji} ${info.name}` : `Species ${node.id.toString().slice(0, node.extinct ? 4 : 6)}`;
+          // Truncate to fit beneath node
+          labelText = truncate(base, isMaximized ? 22 : 16);
         }
 
         const labelFontSize = node.extinct ? (isMaximized ? 9 : 7) : (isMaximized ? 11 : 9);
@@ -320,7 +327,7 @@ function FamilyTreePopup({ genealogyTracker, onClose }) {
       window.removeEventListener('resize', handleResize);
       clearInterval(interval);
     };
-  }, []); // Empty dependency array - the effect captures genealogyTracker
+  }, [genealogyTracker]);
 
   const stats = genealogyTracker.getStats();
 
@@ -427,7 +434,7 @@ export function FamilyTree({ genealogyTracker }) {
       window.removeEventListener('resize', updateSize);
       clearInterval(interval);
     };
-  }, []); // Empty dependency array - the effect captures genealogyTracker
+  }, [genealogyTracker]);
 
   const stats = genealogyTracker.getStats();
 
@@ -526,8 +533,15 @@ function drawHoverInfo(ctx, node, x, y, nodeRadius, canvasWidth, canvasHeight) {
     info.push(`Lasted: ${timeAlive}s`);
   } else {
     // Tooltip for single species
+    const infoObj = node.representative && typeof node.representative.getSpeciesInfo === 'function'
+      ? node.representative.getSpeciesInfo()
+      : null;
+    const speciesLine = infoObj
+      ? `Species: ${infoObj.emoji} ${infoObj.name}${infoObj.code ? ` (${infoObj.code})` : ''}`
+      : `Species: ${node.id.toString().slice(0, 8)}`;
+
     info = [
-      `Species: ${node.id.toString().slice(0, 8)}`,
+      speciesLine,
       `Population: ${node.currentPopulation}`,
       `Max Pop: ${node.maxPopulation}`,
       `Status: ${node.extinct ? 'Extinct' : 'Alive'}`,

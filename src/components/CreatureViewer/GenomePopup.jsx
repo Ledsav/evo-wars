@@ -66,7 +66,12 @@ export function GenomePopup({ organism, onClose }) {
         <div className="genome-popup-header">
           <div className="genome-popup-title">
             <DNAIcon size={24} />
-            <h2>Genome Details - Organism #{organism.id}</h2>
+            <h2>
+              {(() => {
+                const info = typeof organism.getSpeciesInfo === 'function' ? organism.getSpeciesInfo() : null;
+                return info ? `Genome Details - ${info.emoji} ${info.name}` : `Genome Details - Species ${organism.speciesFounderId ?? organism.id}`;
+              })()}
+            </h2>
           </div>
           <button className="genome-popup-close" onClick={onClose}>
             <CloseIcon size={24} />
@@ -79,9 +84,12 @@ export function GenomePopup({ organism, onClose }) {
 
           <div className="genome-overview">
             <div className="overview-stat">
-              <span className="stat-label">Species ID:</span>
+              <span className="stat-label">Species:</span>
               <span className="stat-value">
-                {organism.getSpeciesId ? organism.getSpeciesId().toString().slice(0, 8) : 'N/A'}
+                {(() => {
+                  const speciesInfo = organism.getSpeciesInfo();
+                  return `${speciesInfo.emoji} ${speciesInfo.name}`;
+                })()}
               </span>
             </div>
             <div className="overview-stat">

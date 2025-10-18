@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, useCallback } from 'react';
 import { OrganismRenderer } from '../../rendering/OrganismRenderer';
 
 /**
@@ -87,7 +87,7 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
   }), [world, width, height, highlightedSpeciesId, overlays, viewTransform]);
 
   // Handle zoom with mouse wheel or trackpad pinch
-  const handleWheel = (e) => {
+  const handleWheel = useCallback((e) => {
     e.preventDefault();
 
     const canvas = canvasRef.current;
@@ -133,7 +133,7 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
       offsetX: newOffsetX,
       offsetY: newOffsetY
     });
-  };
+  }, [width, height, viewTransform]);
 
   // Handle panning with mouse drag
   const handleMouseDown = (e) => {
@@ -193,6 +193,17 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
     }
   }, [world, ref]);
 
+  // Add wheel event listener with passive: false to allow preventDefault
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      canvas.removeEventListener('wheel', handleWheel);
+    };
+  }, [handleWheel]);
+
   // Add/remove event listeners for panning
   useEffect(() => {
     if (isPanning) {
@@ -210,7 +221,6 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
       ref={canvasRef}
       width={width}
       height={height}
-      onWheel={handleWheel}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
       style={{

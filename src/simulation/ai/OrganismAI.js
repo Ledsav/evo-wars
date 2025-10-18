@@ -488,7 +488,7 @@ export class OrganismAI {
    */
   tryReproduce() {
     if (this.organism.canReproduce() && Math.random() < 0.01) {
-      return this.organism.reproduce(this.world.mutationRate || 0.05);
+      return this.organism.reproduce(this.world.mutationRate || 0.05, this.world);
     }
     return null;
   }

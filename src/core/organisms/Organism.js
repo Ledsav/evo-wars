@@ -1,14 +1,20 @@
 import { Genome } from '../genetics/Genome.js';
+import { PhenotypeComparator } from './PhenotypeComparator.js';
 import { TraitCalculator } from './TraitCalculator.js';
 
 /**
  * Organism - Base class for all living entities in the simulation
  * Organisms have DNA, phenotype, and behaviors
+ *
+ * Species concept: Phylotype clustering for asexual organisms
+ * - Organisms inherit species founder from parent
+ * - Become new species founder if phenotypic/genetic distance exceeds threshold
+ * - Mimics bacterial speciation (ecotype differentiation)
  */
 export class Organism {
   static nextId = 1;
 
-  constructor(x, y, genome = null, parentId = null) {
+  constructor(x, y, genome = null, parentId = null, speciesFounderId = null) {
     this.id = Organism.nextId++;
     this.genome = genome || Genome.createDefault();
 
@@ -33,8 +39,20 @@ export class Organism {
     this.parentId = parentId;
     this.birthTime = Date.now();
 
+    // Species tracking (phylotype clustering)
+    // If no founder specified, this organism is its own species founder
+    this.speciesFounderId = speciesFounderId !== null ? speciesFounderId : this.id;
+    this._cachedSpeciesId = null; // Cache for getSpeciesId()
+    this._founderPhenotype = null; // Will be set after expressing genome
+    this._speciesInfo = null; // Cache for species name/emoji (set by World)
+
     // Express genome to set phenotype
     this.expressGenome();
+
+    // If this is a founder, cache its phenotype for comparison
+    if (this.speciesFounderId === this.id) {
+      this._founderPhenotype = this.phenotype;
+    }
   }
 
   /**
@@ -261,8 +279,9 @@ export class Organism {
 
   /**
    * Reproduce (asexual) with automatic mutations
+   * Implements phylotype-based speciation for asexual organisms
    */
-  reproduce(mutationRate = 0.05) {
+  reproduce(mutationRate = 0.05, world = null) {
     if (!this.canReproduce()) return null;
 
     // Pay reproduction cost
@@ -270,6 +289,9 @@ export class Organism {
 
     // Clone genome
     const childGenome = this.genome.clone();
+
+    // Track if mutation occurred
+    let mutationOccurred = false;
 
     // Apply random mutations based on mutation rate
     if (Math.random() < mutationRate) {
@@ -285,6 +307,7 @@ export class Organism {
 
       try {
         childGenome.mutateGene(randomGene, mutationType, randomPosition);
+        mutationOccurred = true;
       } catch (error) {
         // Mutation failed, continue without it
         console.log('Mutation failed during reproduction:', error.message);
@@ -294,7 +317,15 @@ export class Organism {
     // Create offspring near parent
     const offsetX = (Math.random() - 0.5) * 30;
     const offsetY = (Math.random() - 0.5) * 30;
-    const offspring = new Organism(this.x + offsetX, this.y + offsetY, childGenome, this.id);
+
+    // Initially inherit parent's species founder
+    const offspring = new Organism(
+      this.x + offsetX,
+      this.y + offsetY,
+      childGenome,
+      this.id,
+      this.speciesFounderId
+    );
 
     // Give some initial energy
     offspring.energy = this.phenotype.reproductionCost * 0.3;
@@ -302,6 +333,11 @@ export class Organism {
     // Inherit parent's section assignment (for species segregation)
     if (this._assignedSection !== undefined) {
       offspring._assignedSection = this._assignedSection;
+    }
+
+    // Check for speciation if mutation occurred and we have world access
+    if (mutationOccurred && world) {
+      offspring.checkSpeciation(world);
     }
 
     return offspring;
@@ -392,12 +428,6 @@ export class Organism {
     return geneCount > 0 ? totalSimilarity / geneCount : 0;
   }
 
-  /**
-   * Check if organism is same species as another (>80% genome similarity)
-   */
-  isSameSpecies(other) {
-    return this.getGenomeSimilarity(other) > 0.8;
-  }
 
   /**
    * Check if this organism is parent or child of another
@@ -422,27 +452,118 @@ export class Organism {
   }
 
   /**
-   * Get species identifier (hash of genome structure)
+   * Check if this organism should become a new species founder
+   * Called after mutations to detect speciation events
+   *
+   * Biological rationale:
+   * - In asexual organisms, species diverge through accumulated mutations
+   * - When phenotypic/genetic distance from founder exceeds threshold, speciation occurs
+   * - This mimics bacterial adaptive radiation and ecotype differentiation
    */
-  getSpeciesId() {
-    if (this._speciesId) return this._speciesId;
-
-    // Create a simple hash based on genome structure
-    const genes = this.genome.getGeneNames().sort();
-    let hash = 0;
-
-    for (const geneName of genes) {
-      const gene = this.genome.getGene(geneName);
-      const seq = gene.dna.toString();
-
-      // Simple hash function
-      for (let i = 0; i < seq.length; i++) {
-        hash = ((hash << 5) - hash) + seq.charCodeAt(i);
-        hash = hash & hash; // Convert to 32bit integer
-      }
+  checkSpeciation(world) {
+    // Can't speciate if we ARE the founder
+    if (this.speciesFounderId === this.id) {
+      return false;
     }
 
-    this._speciesId = Math.abs(hash);
-    return this._speciesId;
+    // Get the species founder organism from world
+    const founder = world.getOrganismById(this.speciesFounderId);
+
+    // If founder not found (extinct), become new founder
+    if (!founder) {
+      this.becomeSpeciesFounder(world);
+      return true;
+    }
+
+    // Check phenotypic and genetic distance from founder
+    const shouldSpeciate = PhenotypeComparator.shouldSpeciate(this, founder);
+
+    if (shouldSpeciate) {
+      this.becomeSpeciesFounder(world);
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Promote this organism to species founder
+   * Creates a new species lineage
+   */
+  becomeSpeciesFounder(world) {
+    const oldSpeciesId = this.speciesFounderId;
+    this.speciesFounderId = this.id;
+    this._cachedSpeciesId = null; // Clear cache
+    this._founderPhenotype = this.phenotype; // Cache phenotype for descendants
+
+    // Notify world of speciation event
+    if (world && world.onSpeciationEvent) {
+      world.onSpeciationEvent(this, oldSpeciesId);
+    }
+  }
+
+  /**
+   * Get species identifier
+   * Returns the ID of the species founder organism
+   *
+   * This is stable across generations until speciation occurs,
+   * unlike hash-based approaches which change with every mutation.
+   */
+  getSpeciesId() {
+    if (this._cachedSpeciesId !== null) {
+      return this._cachedSpeciesId;
+    }
+
+    this._cachedSpeciesId = this.speciesFounderId;
+    return this._cachedSpeciesId;
+  }
+
+  /**
+   * Get phenotypic distance from species founder
+   * Useful for tracking evolutionary divergence
+   */
+  getPhenotypicDistanceFromFounder(world) {
+    if (this.speciesFounderId === this.id) {
+      return 0; // We ARE the founder
+    }
+
+    const founder = world?.getOrganismById(this.speciesFounderId);
+    if (!founder) {
+      return 1.0; // Maximum distance if founder not found
+    }
+
+    return PhenotypeComparator.calculateDistance(this, founder);
+  }
+
+  /**
+   * Check if organism is same species as another
+   * Now based on shared species founder rather than genome similarity
+   */
+  isSameSpecies(other) {
+    return this.speciesFounderId === other.speciesFounderId;
+  }
+
+  /**
+   * Get species name information
+   * Returns cached {name, code, emoji} or generates default if not set
+   */
+  getSpeciesInfo() {
+    if (this._speciesInfo) {
+      return this._speciesInfo;
+    }
+
+    // Return default if not yet assigned by World
+    return {
+      name: `Species ${this.speciesFounderId}`,
+      code: `SP-${String(this.speciesFounderId).padStart(3, '0')}`,
+      emoji: '🦠'
+    };
+  }
+
+  /**
+   * Set species info (called by World when organism is added)
+   */
+  setSpeciesInfo(info) {
+    this._speciesInfo = info;
   }
 }
