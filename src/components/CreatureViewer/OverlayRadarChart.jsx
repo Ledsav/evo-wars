@@ -1,4 +1,7 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useNotifications } from '../../context/useNotifications';
+import { downloadSvgAsPng, timestampFilename } from '../../utils/screenshot';
+import { ScreenShotIcon } from '../shared/Icons/Icons';
 
 /**
  * OverlayRadarChart - Overlaid radar chart showing multiple organisms on one chart
@@ -6,6 +9,8 @@ import { useState } from 'react';
 export function OverlayRadarChart({ organisms }) {
   const [hoveredTrait, setHoveredTrait] = useState(null);
   const [hoveredOrganism, setHoveredOrganism] = useState(null);
+  const svgRef = useRef(null);
+  const { notify } = useNotifications();
 
   if (!organisms || organisms.length === 0) return null;
 
@@ -103,7 +108,21 @@ export function OverlayRadarChart({ organisms }) {
 
   return (
     <div className="overlay-radar-chart-container">
-      <svg className="overlay-radar-chart-svg" width={width} height={height} viewBox={`0 0 ${width} ${height * viewBoxFactor}`}>
+      <button
+        className="floating-action camera"
+        title="Save comparison radar screenshot"
+        onClick={() => {
+          if (svgRef.current) {
+            const fname = timestampFilename('radar-overlay');
+            downloadSvgAsPng(svgRef.current, fname, '#0a1929', (filename) => {
+              notify('screenshot', `📸 Comparison chart saved: ${filename}`, { timeout: 3000 });
+            });
+          }
+        }}
+      >
+        <ScreenShotIcon size={18} />
+      </button>
+      <svg ref={svgRef} className="overlay-radar-chart-svg" width={width} height={height} viewBox={`0 0 ${width} ${height * viewBoxFactor}`}>
         {/* Background grid circles */}
         <g className="radar-grid">
           {Array.from({ length: levels }).map((_, i) => {

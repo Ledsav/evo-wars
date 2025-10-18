@@ -16,6 +16,32 @@ export class GenealogyTracker {
     // Performance: limit how often we check for new species
     this.lastCheckTime = 0;
     this.checkInterval = 100; // Check every 100ms
+
+    // Event listeners
+    this.listeners = {
+      'species-born': new Set(),
+      'species-extinct': new Set(),
+    };
+  }
+
+  on(event, handler) {
+    if (this.listeners[event]) {
+      this.listeners[event].add(handler);
+    }
+  }
+
+  off(event, handler) {
+    if (this.listeners[event]) {
+      this.listeners[event].delete(handler);
+    }
+  }
+
+  emit(event, payload) {
+    if (this.listeners[event]) {
+      for (const h of this.listeners[event]) {
+        try { h(payload); } catch (e) { console.error('Genealogy event handler error', e); }
+      }
+    }
   }
 
   /**
@@ -108,6 +134,7 @@ export class GenealogyTracker {
       if (currentPop === 0 && !node.extinct) {
         node.extinct = true;
         node.extinctTime = currentTime;
+        this.emit('species-extinct', { speciesId: node.id, node });
       }
     }
   }
@@ -143,6 +170,9 @@ export class GenealogyTracker {
     if (parentSpeciesId && this.speciesNodes.has(parentSpeciesId)) {
       this.speciesNodes.get(parentSpeciesId).children.add(speciesId);
     }
+
+    // Emit species born event
+    this.emit('species-born', { speciesId, parentSpeciesId, node });
   }
 
   /**

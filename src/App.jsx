@@ -3,11 +3,16 @@ import './App.css';
 import { CreatureViewer } from './components/CreatureViewer/CreatureViewer';
 import { EnvironmentControls } from './components/EnvironmentControls/EnvironmentControls';
 import { FamilyTree } from './components/FamilyTree/FamilyTree';
+import { SettingsModal } from './components/Notifications/SettingsModal.jsx';
+import { Toasts } from './components/Notifications/Toasts.jsx';
+import { ScreenShotIcon } from './components/shared/Icons/Icons';
 import { SimulationCanvas } from './components/SimulationCanvas/SimulationCanvas';
 import { SimulationControls } from './components/SimulationControls/SimulationControls';
 import { Statistics } from './components/Statistics/Statistics';
-import { World } from './simulation/world/World';
+import { useNotifications } from './context/useNotifications';
 import { GameEngine } from './engine/GameEngine';
+import { World } from './simulation/world/World';
+import { downloadCanvas, timestampFilename } from './utils/screenshot';
 
 const WIDTH_RESOLUTIONS = {low: 800, medium: 1280, high: 1920, ultra: 2560};
 const HEIGHT_RESOLUTIONS = {low: 600, medium: 720, high: 1080, ultra: 1440};
@@ -26,10 +31,12 @@ function App() {
     showSpeed: false,
     showMetabolism: false,
   });
+  const { notify } = useNotifications();
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const updateCounterRef = useRef(0);
   const lastUIUpdateRef = useRef(0);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Initialize game
   useEffect(() => {
@@ -61,6 +68,30 @@ function App() {
       gameEngine.stop();
     };
   }, [world, gameEngine]);
+
+  // Hook notifications to genealogy events
+  useEffect(() => {
+    const gt = world.genealogyTracker;
+    if (!gt) return;
+    const onBorn = ({ speciesId, parentSpeciesId, node }) => {
+      const info = node?.representative?.getSpeciesInfo?.();
+      const name = info ? `${info.emoji} ${info.name}` : `Species ${String(speciesId).slice(0,6)}`;
+      const parentInfo = parentSpeciesId && world.getSpeciesName ? world.getSpeciesName(parentSpeciesId) : null;
+      const parent = parentInfo?.name;
+      notify('species-born', parent ? `New species ${name} from ${parent}` : `New species ${name}`);
+    };
+    const onExtinct = ({ node }) => {
+      const info = node?.representative?.getSpeciesInfo?.();
+      const name = info ? `${info.emoji} ${info.name}` : `Species ${String(node.id).slice(0,6)}`;
+      notify('species-extinct', `${name} went extinct`);
+    };
+    gt.on('species-born', onBorn);
+    gt.on('species-extinct', onExtinct);
+    return () => {
+      gt.off('species-born', onBorn);
+      gt.off('species-extinct', onExtinct);
+    };
+  }, [notify, world]);
 
   const handleEnvironmentChange = (params) => {
     if (params.restart) {
@@ -153,6 +184,16 @@ function App() {
     }
   };
 
+  const handleCaptureSimulation = () => {
+    const canvas = canvasRef.current?.getCanvasElement?.();
+    if (canvas) {
+      const fname = timestampFilename('simulation');
+      downloadCanvas(canvas, fname, (filename) => {
+        notify('screenshot', `📸 Screenshot saved: ${filename}`, { timeout: 3000 });
+      });
+    }
+  };
+
   return (
     <div className="app">
       <SimulationControls
@@ -164,10 +205,19 @@ function App() {
         onZoomOut={handleZoomOut}
         onZoomReset={handleZoomReset}
         onResetView={handleResetView}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
 
       <div className="main-container">
         <div className="canvas-section" ref={containerRef}>
+          <button
+            className="floating-action camera"
+            title="Save simulation screenshot"
+            onClick={handleCaptureSimulation}
+            aria-label="Save simulation screenshot"
+          >
+            <ScreenShotIcon size={18} />
+          </button>
           <SimulationCanvas
             world={world}
             width={worldSize.width}
@@ -238,6 +288,8 @@ function App() {
           </div>
         </div>
       </div>
+      <Toasts />
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

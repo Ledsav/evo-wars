@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useNotifications } from '../../context/useNotifications';
 import { OrganismRenderer } from '../../rendering/OrganismRenderer';
+import { ScreenShotIcon } from '../shared/Icons/Icons';
 import './FamilyTree.css';
 
 /**
  * FamilyTreeCanvas - Reusable canvas component for rendering the tree
  */
-function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMaximized = false }) {
+function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMaximized = false, innerRef }) {
   const canvasRef = useRef(null);
   const [hoveredNode, setHoveredNode] = useState(null);
   const nodePositions = useRef(new Map()); // Cache node positions for hover detection
@@ -278,7 +280,11 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
 
   return (
     <canvas
-      ref={canvasRef}
+      ref={(el) => {
+        canvasRef.current = el;
+        if (typeof innerRef === 'function') innerRef(el);
+        else if (innerRef && typeof innerRef === 'object') innerRef.current = el;
+      }}
       width={width}
       height={height}
       onMouseMove={handleMouseMove}
@@ -295,6 +301,8 @@ function FamilyTreePopup({ genealogyTracker, onClose }) {
     width: Math.max(800, window.innerWidth - 120),
     height: Math.max(500, window.innerHeight - 320)
   });
+  const canvasElRef = useRef(null);
+  const { notify } = useNotifications();
 
   useEffect(() => {
     const handleResize = () => {
@@ -379,11 +387,30 @@ function FamilyTreePopup({ genealogyTracker, onClose }) {
 
         {/* Tree Canvas */}
         <div className="tree-container-popup">
+          <button
+            className="floating-action camera"
+            title="Save genealogy screenshot"
+            onClick={() => {
+              const el = canvasElRef.current;
+              if (el) {
+                // lazy import to avoid circular deps
+                import('../../utils/screenshot').then(({ downloadCanvas, timestampFilename }) => {
+                  const fname = timestampFilename('genealogy');
+                  downloadCanvas(el, fname, (filename) => {
+                    notify('screenshot', `📸 Genealogy tree saved: ${filename}`, { timeout: 3000 });
+                  });
+                });
+              }
+            }}
+          >
+            <ScreenShotIcon size={18} />
+          </button>
           <FamilyTreeCanvas
             genealogyTracker={genealogyTracker}
             width={canvasSize.width}
             height={canvasSize.height}
             isMaximized={true}
+            innerRef={canvasElRef}
           />
         </div>
       </div>
@@ -399,6 +426,8 @@ export function FamilyTree({ genealogyTracker }) {
   const containerRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ width: 500, height: 600 });
   const [isMaximized, setIsMaximized] = useState(false);
+  const canvasElRef = useRef(null);
+  const { notify } = useNotifications();
 
   // Update canvas size when container resizes OR tree depth changes
   useEffect(() => {
@@ -490,11 +519,28 @@ export function FamilyTree({ genealogyTracker }) {
 
         {/* Tree Canvas */}
         <div className="tree-container" ref={containerRef}>
+          <button
+            className="floating-action camera"
+            title="Save genealogy screenshot"
+            onClick={() => {
+              if (canvasElRef.current) {
+                import('../../utils/screenshot').then(({ downloadCanvas, timestampFilename }) => {
+                  const fname = timestampFilename('genealogy');
+                  downloadCanvas(canvasElRef.current, fname, (filename) => {
+                    notify('screenshot', `📸 Genealogy tree saved: ${filename}`, { timeout: 3000 });
+                  });
+                });
+              }
+            }}
+          >
+            <ScreenShotIcon size={18} />
+          </button>
           <FamilyTreeCanvas
             genealogyTracker={genealogyTracker}
             width={canvasSize.width}
             height={canvasSize.height}
             isMaximized={false}
+            innerRef={canvasElRef}
           />
         </div>
       </div>

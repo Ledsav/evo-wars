@@ -3,7 +3,9 @@ import { useState } from 'react';
 /**
  * SimulationControls - Game-like control bar for simulation
  */
-export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomIn, onZoomOut, onZoomReset, onResetView }) {
+import { SettingsIcon } from '../shared/Icons/Icons';
+
+export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomIn, onZoomOut, onZoomReset, onResetView, onOpenSettings }) {
   const [simulationSpeed, setSimulationSpeed] = useState(1);
 
   const handlePauseToggle = () => {
@@ -203,6 +205,17 @@ export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomI
             <div className="stat-value">{formatElapsedTime(stats.worldTime)}</div>
           </div>
         </div>
+      </div>
+
+      <div className="controls-right">
+        <button
+          className="control-button settings-button"
+          title="Settings"
+          onClick={onOpenSettings}
+          aria-label="Open settings"
+        >
+          <SettingsIcon size={18} />
+        </button>
       </div>
     </div>
   );

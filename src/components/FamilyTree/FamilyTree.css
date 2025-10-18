@@ -9,6 +9,7 @@
 
 /* Header with maximize button */
 .family-tree-header {
+  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -198,6 +199,7 @@
 }
 
 .popup-header {
+  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -234,13 +236,13 @@
 }
 
 .tree-container-popup {
+  position: relative;
   flex: 1;
   background: #1a1a1a;
   border: 1px solid #444444;
   border-radius: 6px;
   overflow-y: auto;
   overflow-x: hidden;
-  position: relative;
   min-height: 0; /* Allow flex item to shrink and scroll */
   max-height: calc(95vh - 280px); /* Constrain height to enable scrolling */
 }

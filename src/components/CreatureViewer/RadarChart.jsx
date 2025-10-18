@@ -1,5 +1,8 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useNotifications } from '../../context/useNotifications';
 import { OrganismRenderer } from '../../rendering/OrganismRenderer';
+import { downloadSvgAsPng, timestampFilename } from '../../utils/screenshot';
+import { ScreenShotIcon } from '../shared/Icons/Icons';
 
 /**
  * RadarChart - Spider/radar chart visualization of organism traits
@@ -8,6 +11,8 @@ export function RadarChart({ organism }) {
   const [thumbnailUrl, setThumbnailUrl] = useState(null);
   const [hoveredTrait, setHoveredTrait] = useState(null);
   const hoverTimeoutRef = useRef(null);
+  const svgRef = useRef(null);
+  const { notify } = useNotifications();
 
   // Debounced hover handlers to prevent flickering
   const handleHoverEnter = (index) => {
@@ -160,8 +165,22 @@ export function RadarChart({ organism }) {
           </div>
         )}
         <h3 className="radar-chart-title">Trait Profile</h3>
+        <button
+          className="floating-action camera"
+          title="Save radar screenshot"
+          onClick={() => {
+            if (svgRef.current) {
+              const fname = timestampFilename('radar');
+              downloadSvgAsPng(svgRef.current, fname, '#0a1929', (filename) => {
+                notify('screenshot', `📸 Radar chart saved: ${filename}`, { timeout: 3000 });
+              });
+            }
+          }}
+        >
+          <ScreenShotIcon size={18} />
+        </button>
       </div>
-      <svg className="radar-chart-svg" width={width} height={height} viewBox={`0 0 ${width } ${height }`}>
+      <svg ref={svgRef} className="radar-chart-svg" width={width} height={height} viewBox={`0 0 ${width } ${height }`}>
         {/* Background grid circles */}
         <g className="radar-grid">
           {Array.from({ length: levels }).map((_, i) => {

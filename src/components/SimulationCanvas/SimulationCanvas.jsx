@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState, useCallback } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { OrganismRenderer } from '../../rendering/OrganismRenderer';
 
 /**
@@ -83,7 +83,8 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
         offsetX: 0,
         offsetY: 0
       });
-    }
+    },
+    getCanvasElement: () => canvasRef.current
   }), [world, width, height, highlightedSpeciesId, overlays, viewTransform]);
 
   // Handle zoom with mouse wheel or trackpad pinch
@@ -143,7 +144,7 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
     }
   };
 
-  const handleMouseMove = (e) => {
+  const handleMouseMove = useCallback((e) => {
     if (!isPanning) return;
 
     const dx = e.clientX - panStart.x;
@@ -167,11 +168,11 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
     });
 
     setPanStart({ x: e.clientX, y: e.clientY });
-  };
+  }, [height, isPanning, panStart.x, panStart.y, width]);
 
-  const handleMouseUp = () => {
+  const handleMouseUp = useCallback(() => {
     setIsPanning(false);
-  };
+  }, []);
 
   // Reset zoom
   const handleDoubleClick = () => {
@@ -214,7 +215,7 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
         window.removeEventListener('mouseup', handleMouseUp);
       };
     }
-  }, [isPanning, panStart, viewTransform]);
+  }, [handleMouseMove, handleMouseUp, isPanning]);
 
   return (
     <canvas
