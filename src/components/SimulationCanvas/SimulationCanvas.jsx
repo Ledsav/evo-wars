@@ -18,6 +18,10 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
+  // Touch state for gestures
+  const [_touches, setTouches] = useState([]);
+  const [lastTouchDistance, setLastTouchDistance] = useState(0);
+
   // Expose render and resetView functions to parent component
   useImperativeHandle(ref, () => ({
     render: () => {
@@ -183,6 +187,129 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
     });
   };
 
+  // Touch event handlers for mobile gestures
+  const getTouchDistance = (touch1, touch2) => {
+    const dx = touch2.clientX - touch1.clientX;
+    const dy = touch2.clientY - touch1.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  const getTouchCenter = (touch1, touch2) => {
+    return {
+      x: (touch1.clientX + touch2.clientX) / 2,
+      y: (touch1.clientY + touch2.clientY) / 2
+    };
+  };
+
+  const handleTouchStart = useCallback((e) => {
+    e.preventDefault(); // Prevent default touch behavior
+
+    const touchList = Array.from(e.touches);
+    setTouches(touchList);
+
+    if (touchList.length === 1) {
+      // Single touch - start panning
+      setIsPanning(true);
+      setPanStart({ x: touchList[0].clientX, y: touchList[0].clientY });
+    } else if (touchList.length === 2) {
+      // Two touches - start pinch zoom
+      setIsPanning(false);
+      const distance = getTouchDistance(touchList[0], touchList[1]);
+      setLastTouchDistance(distance);
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e) => {
+    e.preventDefault(); // Prevent default touch behavior
+
+    const touchList = Array.from(e.touches);
+
+    if (touchList.length === 1 && isPanning) {
+      // Single touch panning
+      const dx = touchList[0].clientX - panStart.x;
+      const dy = touchList[0].clientY - panStart.y;
+
+      setViewTransform(prev => {
+        const newOffsetX = prev.offsetX + dx;
+        const newOffsetY = prev.offsetY + dy;
+
+        // Calculate pan limits
+        const minOffsetX = width - (width * prev.scale);
+        const maxOffsetX = 0;
+        const minOffsetY = height - (height * prev.scale);
+        const maxOffsetY = 0;
+
+        return {
+          ...prev,
+          offsetX: Math.max(minOffsetX, Math.min(maxOffsetX, newOffsetX)),
+          offsetY: Math.max(minOffsetY, Math.min(maxOffsetY, newOffsetY))
+        };
+      });
+
+      setPanStart({ x: touchList[0].clientX, y: touchList[0].clientY });
+    } else if (touchList.length === 2) {
+      // Pinch zoom
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const distance = getTouchDistance(touchList[0], touchList[1]);
+      const center = getTouchCenter(touchList[0], touchList[1]);
+
+      const centerX = center.x - rect.left;
+      const centerY = center.y - rect.top;
+
+      // Calculate zoom factor from distance change
+      const zoomFactor = distance / lastTouchDistance;
+      const newScale = Math.max(1, Math.min(5, viewTransform.scale * zoomFactor));
+
+      // Calculate world position of touch center before zoom
+      const worldX = (centerX - viewTransform.offsetX) / viewTransform.scale;
+      const worldY = (centerY - viewTransform.offsetY) / viewTransform.scale;
+
+      // Calculate new offset to keep touch center fixed
+      let newOffsetX = centerX - worldX * newScale;
+      let newOffsetY = centerY - worldY * newScale;
+
+      // Apply pan limits
+      const minOffsetX = width - (width * newScale);
+      const maxOffsetX = 0;
+      const minOffsetY = height - (height * newScale);
+      const maxOffsetY = 0;
+
+      newOffsetX = Math.max(minOffsetX, Math.min(maxOffsetX, newOffsetX));
+      newOffsetY = Math.max(minOffsetY, Math.min(maxOffsetY, newOffsetY));
+
+      setViewTransform({
+        scale: newScale,
+        offsetX: newOffsetX,
+        offsetY: newOffsetY
+      });
+
+      setLastTouchDistance(distance);
+    }
+
+    setTouches(touchList);
+  }, [isPanning, panStart, lastTouchDistance, viewTransform, width, height]);
+
+  const handleTouchEnd = useCallback((e) => {
+    e.preventDefault();
+
+    const touchList = Array.from(e.touches);
+    setTouches(touchList);
+
+    if (touchList.length === 0) {
+      // All touches released
+      setIsPanning(false);
+      setLastTouchDistance(0);
+    } else if (touchList.length === 1) {
+      // One touch remaining - restart panning
+      setIsPanning(true);
+      setPanStart({ x: touchList[0].clientX, y: touchList[0].clientY });
+      setLastTouchDistance(0);
+    }
+  }, []);
+
   // Initial render
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -217,6 +344,24 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
     }
   }, [handleMouseMove, handleMouseUp, isPanning]);
 
+  // Add touch event listeners
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+    canvas.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+
+    return () => {
+      canvas.removeEventListener('touchstart', handleTouchStart);
+      canvas.removeEventListener('touchmove', handleTouchMove);
+      canvas.removeEventListener('touchend', handleTouchEnd);
+      canvas.removeEventListener('touchcancel', handleTouchEnd);
+    };
+  }, [handleTouchStart, handleTouchMove, handleTouchEnd]);
+
   return (
     <canvas
       ref={canvasRef}
@@ -233,7 +378,10 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
         maxWidth: '100%',
         maxHeight: '100%',
         objectFit: 'contain',
-        cursor: isPanning ? 'grabbing' : 'grab'
+        cursor: isPanning ? 'grabbing' : 'grab',
+        touchAction: 'none', // Disable browser touch handling for custom gestures
+        WebkitUserSelect: 'none', // Prevent text selection on mobile
+        userSelect: 'none'
       }}
     />
   );

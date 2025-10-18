@@ -11,6 +11,7 @@ An interactive evolution simulation where organisms evolve through natural selec
 - 📸 **Screenshot System** - Capture any view with flash effects
 - 🌲 **Family Trees** - Visualize evolutionary relationships
 - 🎨 **Modern UI** - Dark theme with smooth animations
+- 📱 **Mobile Optimized** - Touch gestures, responsive design, performance-tuned
 
 ## 🌐 Live Demo
 
@@ -97,14 +98,24 @@ evo-wars/
 - [Species System](./docs/SPECIES_SYSTEM.md) - How species form and evolve
 - [Trait System](./docs/TRAIT_SYSTEM.md) - Genetic traits and phenotypes
 - [Deployment Guide](./DEPLOYMENT.md) - Complete deployment instructions
+- [Mobile Support](./MOBILE.md) - Mobile optimization and touch gestures
 
 ## 🎮 Controls
 
+### Desktop
 - **Pause/Play** - Control simulation speed
-- **Zoom** - Adjust world scale
+- **Zoom** - Mouse wheel or trackpad to zoom in/out
+- **Pan** - Click and drag to move around
 - **Speed** - Change simulation speed (0.25x - 4x)
 - **Environment** - Modify food, temperature, and conditions
 - **Screenshots** - Capture any view with camera buttons
+
+### Mobile 📱
+- **Pinch to Zoom** - Two-finger pinch gesture
+- **Pan** - Single finger drag to move around
+- **Tap** - Select organisms and interact with UI
+- **Portrait/Landscape** - Responsive layout adapts
+- **Touch-Optimized** - 44px minimum touch targets
 
 ## 🧪 Features in Detail
 
@@ -125,6 +136,30 @@ evo-wars/
 - Radar charts for trait comparison
 - Interactive family trees
 - Population statistics
+
+### Mobile Support 📱
+- **Touch Gestures**
+  - Pinch-to-zoom on simulation canvas
+  - Single-finger pan navigation
+  - Double-tap to reset view
+  
+- **Responsive Design**
+  - Adaptive layout for portrait/landscape
+  - Touch-friendly 44px minimum buttons
+  - Collapsible controls on small screens
+  - Full-screen popups on mobile
+  
+- **Performance Optimizations**
+  - Reduced population size on mobile (50 vs 100)
+  - Fewer food particles (200-400 vs 800)
+  - Smaller world dimensions for better framerate
+  - Optimized rendering for mobile GPUs
+  
+- **Mobile-First Features**
+  - No pinch-zoom on page (app handles zoom)
+  - PWA-ready with app-like experience
+  - Status bar integration on iOS
+  - Landscape orientation support
 
 ## 📝 License
 

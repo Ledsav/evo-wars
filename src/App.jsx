@@ -12,14 +12,33 @@ import { Statistics } from './components/Statistics/Statistics';
 import { useNotifications } from './context/useNotifications';
 import { GameEngine } from './engine/GameEngine';
 import { World } from './simulation/world/World';
+import { getRecommendedWorldSize, isMobileDevice } from './utils/mobileDetect';
 import { downloadCanvas, timestampFilename } from './utils/screenshot';
 
 const WIDTH_RESOLUTIONS = {low: 800, medium: 1280, high: 1920, ultra: 2560};
 const HEIGHT_RESOLUTIONS = {low: 600, medium: 720, high: 1080, ultra: 1440};
 
 function App() {
-  const [worldSize, setWorldSize] = useState({ width: WIDTH_RESOLUTIONS.ultra, height: HEIGHT_RESOLUTIONS.ultra });
-  const [world] = useState(() => new World(worldSize.width, worldSize.height));
+  // Detect mobile and set appropriate initial world size
+  const isMobile = isMobileDevice();
+  const initialSize = isMobile 
+    ? getRecommendedWorldSize() 
+    : { width: WIDTH_RESOLUTIONS.ultra, height: HEIGHT_RESOLUTIONS.ultra };
+  
+  const [worldSize, setWorldSize] = useState(initialSize);
+  const [world] = useState(() => {
+    const w = new World(initialSize.width, initialSize.height);
+    
+    // Optimize for mobile devices
+    if (isMobile) {
+      w.initialPopulation = 50; // Fewer organisms on mobile
+      w.initialFoodCount = window.innerWidth <= 480 ? 200 : 400; // Fewer food particles
+      w.updateBatchSize = 30; // Smaller update batches for smoother performance
+      w.foodSpawnRate = 0.3; // Slower food spawn rate
+    }
+    
+    return w;
+  });
   const [gameEngine] = useState(() => new GameEngine(world));
   const [, forceUpdate] = useState({});
   const [activeTab, setActiveTab] = useState('controls');

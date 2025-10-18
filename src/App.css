@@ -2045,3 +2045,386 @@ body {
     max-width: calc(100vw - 20px);
   }
 }
+
+/* Mobile Optimization */
+@media (max-width: 768px) {
+  body {
+    /* Prevent text selection and improve touch performance */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: pan-x pan-y;
+  }
+
+  .app {
+    height: 100vh;
+    height: 100dvh; /* Dynamic viewport height for mobile browsers */
+  }
+
+  /* Simulation Controls - Make more compact on mobile */
+  .simulation-controls {
+    padding: 8px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .controls-left,
+  .controls-center,
+  .controls-right {
+    gap: 6px;
+  }
+
+  .controls-center {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .control-button {
+    min-width: 44px; /* Touch-friendly size */
+    min-height: 44px;
+    padding: 8px;
+    font-size: 14px;
+  }
+
+  .zoom-controls,
+  .speed-controls {
+    gap: 6px;
+  }
+
+  .zoom-display,
+  .speed-display {
+    font-size: 12px;
+    min-width: 40px;
+  }
+
+  .stat-display {
+    padding: 6px 10px;
+    min-height: 44px;
+  }
+
+  .stat-icon {
+    font-size: 18px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+  }
+
+  .stat-value {
+    font-size: 14px;
+  }
+
+  /* Main Container - Stack vertically on mobile */
+  .main-container {
+    padding: 0 5px 5px 5px;
+    gap: 5px;
+  }
+
+  .canvas-section {
+    min-height: 300px;
+    max-height: 50vh;
+    padding: 5px;
+  }
+
+  /* Sidebar - Collapsible on mobile */
+  .sidebar {
+    width: 100%;
+    max-height: none;
+    height: auto;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .tab-buttons {
+    gap: 4px;
+    padding: 4px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tab-button {
+    padding: 10px 14px;
+    font-size: 13px;
+    white-space: nowrap;
+    min-height: 44px;
+  }
+
+  .tab-content {
+    padding: 10px;
+    max-height: calc(50vh - 60px);
+  }
+
+  /* Floating Actions - Larger on mobile */
+  .floating-action {
+    width: 44px;
+    height: 44px;
+    bottom: 12px;
+    right: 12px;
+  }
+
+  .floating-action svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* Creature Viewer - Mobile optimizations */
+  .creature-viewer h2 {
+    font-size: 16px;
+    margin-bottom: 12px;
+  }
+
+  .overlay-toggles {
+    gap: 8px;
+  }
+
+  .overlay-toggle-item {
+    padding: 10px 12px;
+    min-height: 44px;
+  }
+
+  .species-list {
+    gap: 8px;
+  }
+
+  .species-item {
+    padding: 10px;
+    min-height: 44px;
+  }
+
+  .species-thumb {
+    width: 40px;
+    height: 40px;
+  }
+
+  .species-name {
+    font-size: 14px;
+  }
+
+  .species-count {
+    font-size: 12px;
+  }
+
+  .select-all-btn,
+  .compare-button {
+    padding: 10px 16px;
+    font-size: 14px;
+    min-height: 44px;
+  }
+
+  /* Popups - Full screen on mobile */
+  .genome-popup-overlay,
+  .comparison-popup-overlay,
+  .family-tree-popup-overlay {
+    padding: 0;
+  }
+
+  .genome-popup,
+  .comparison-popup,
+  .family-tree-popup {
+    max-width: 100vw;
+    max-height: 100vh;
+    height: 100vh;
+    border-radius: 0;
+    padding: 15px;
+  }
+
+  .genome-popup-header,
+  .comparison-popup-header,
+  .popup-header {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+  }
+
+  .genome-popup-title h2,
+  .comparison-popup-title h2,
+  .popup-header h2 {
+    font-size: 18px;
+  }
+
+  .genome-popup-close,
+  .comparison-popup-close,
+  .close-button,
+  .maximize-button {
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
+  }
+
+  .genome-popup-content,
+  .comparison-popup-content {
+    max-height: calc(100vh - 80px);
+  }
+
+  /* Radar Charts - Responsive sizing */
+  .radar-chart-container,
+  .overlay-radar-chart-container {
+    padding: 12px;
+  }
+
+  .radar-chart-svg,
+  .overlay-radar-chart-svg {
+    max-height: 250px;
+  }
+
+  /* Comparison Grid - Single column on mobile */
+  .comparison-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  /* Environment Controls - Stack vertically */
+  .control-group {
+    margin-bottom: 16px;
+  }
+
+  .control-group label {
+    font-size: 13px;
+  }
+
+  /* Statistics - Mobile layout */
+  .stats-summary {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .stat-card {
+    padding: 8px;
+  }
+
+  .stat-card .stat-label {
+    font-size: 10px;
+  }
+
+  .stat-card .stat-value {
+    font-size: 16px;
+  }
+
+  .export-controls {
+    flex-wrap: wrap;
+  }
+
+  .export-button {
+    flex: 1 1 calc(50% - 5px);
+    min-width: 120px;
+    padding: 12px;
+    min-height: 44px;
+  }
+
+  /* Family Tree - Mobile optimizations */
+  .genealogy-stats {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .tree-legend {
+    gap: 12px;
+  }
+
+  .legend-item {
+    font-size: 11px;
+  }
+
+  .tree-container,
+  .tree-container-popup {
+    min-height: 250px;
+  }
+
+  /* Toasts - Adjust for mobile */
+  .toasts-container {
+    bottom: 80px; /* Account for bottom nav on mobile */
+    left: 10px;
+    right: 10px;
+    max-width: none;
+  }
+
+  .toast {
+    min-width: auto;
+    width: 100%;
+    padding: 12px 16px;
+  }
+
+  /* Settings Modal - Full screen on mobile */
+  .settings-modal {
+    max-width: 100vw;
+    width: 100vw;
+    max-height: 100vh;
+    height: 100vh;
+    border-radius: 0;
+    padding: 15px;
+  }
+
+  .toggle-row {
+    padding: 12px;
+    min-height: 54px;
+  }
+
+  .toggle-label {
+    font-size: 14px;
+  }
+
+  /* Scrollbar - Hide on mobile for cleaner look */
+  *::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: #555555;
+  }
+}
+
+/* Extra small devices (phones in portrait) */
+@media (max-width: 480px) {
+  .simulation-controls {
+    padding: 6px;
+  }
+
+  .controls-left {
+    flex-wrap: wrap;
+  }
+
+  .controls-center {
+    display: none; /* Hide stats on very small screens to save space */
+  }
+
+  .stat-display {
+    padding: 4px 8px;
+  }
+
+  .control-button {
+    min-width: 40px;
+    min-height: 40px;
+    padding: 6px;
+  }
+
+  .zoom-controls,
+  .speed-controls {
+    display: none; /* Hide zoom/speed on tiny screens - can add hamburger menu */
+  }
+
+  .canvas-section {
+    min-height: 250px;
+    max-height: 40vh;
+  }
+
+  .tab-button {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .floating-action {
+    width: 40px;
+    height: 40px;
+    bottom: 10px;
+    right: 10px;
+  }
+
+  .stats-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .export-button {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+}
