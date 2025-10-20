@@ -18,10 +18,13 @@ export class StatisticsTracker {
       foodCount: [],
       averageEnergy: [],
       combatKills: [], // Cumulative combat kills over time
+      cooperationEvents: [], // Cumulative cooperation events over time
+      averageGenomeLength: [], // Average genetic complexity over time
     };
 
     // Cumulative counters (not reset between samples)
     this.totalCombatKills = 0;
+    this.totalCooperationEvents = 0;
   }
 
   /**
@@ -84,9 +87,19 @@ export class StatisticsTracker {
       ? aliveOrganisms.reduce((sum, org) => sum + org.energy, 0) / aliveOrganisms.length
       : 0;
 
+    // Calculate average genome length (number of genes)
+    const averageGenomeLength = aliveOrganisms.length > 0
+      ? aliveOrganisms.reduce((sum, org) => sum + Object.keys(org.genome.genes).length, 0) / aliveOrganisms.length
+      : 0;
+
     // Update cumulative combat kills from world
     if (world.combatKills !== undefined) {
       this.totalCombatKills = world.combatKills;
+    }
+
+    // Update cumulative cooperation events from world
+    if (world.cooperationEvents !== undefined) {
+      this.totalCooperationEvents = world.cooperationEvents;
     }
 
     // Add data points
@@ -97,6 +110,8 @@ export class StatisticsTracker {
     this.data.foodCount.push(world.foodParticles.length);
     this.data.averageEnergy.push(averageEnergy);
     this.data.combatKills.push(this.totalCombatKills);
+    this.data.cooperationEvents.push(this.totalCooperationEvents);
+    this.data.averageGenomeLength.push(averageGenomeLength);
 
     // Limit data points to prevent memory issues
     if (this.data.time.length > this.maxDataPoints) {
@@ -128,6 +143,8 @@ export class StatisticsTracker {
         foodCount: 0,
         averageEnergy: 0,
         combatKills: 0,
+        cooperationEvents: 0,
+        averageGenomeLength: 0,
       };
     }
 
@@ -139,6 +156,8 @@ export class StatisticsTracker {
       foodCount: this.data.foodCount[len - 1],
       averageEnergy: this.data.averageEnergy[len - 1],
       combatKills: this.data.combatKills[len - 1],
+      cooperationEvents: this.data.cooperationEvents[len - 1],
+      averageGenomeLength: this.data.averageGenomeLength[len - 1],
     };
   }
 
@@ -151,6 +170,7 @@ export class StatisticsTracker {
     }
     this.lastSampleTime = 0;
     this.totalCombatKills = 0;
+    this.totalCooperationEvents = 0;
   }
 
   /**

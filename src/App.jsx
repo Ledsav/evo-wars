@@ -14,6 +14,7 @@ import { GameEngine } from './engine/GameEngine';
 import { World } from './simulation/world/World';
 import { getRecommendedWorldSize, isMobileDevice } from './utils/mobileDetect';
 import { downloadCanvas, timestampFilename } from './utils/screenshot';
+import { loadEnvironmentSettings, loadSampleFrequency, saveEnvironmentSettings, saveSampleFrequency } from './utils/storage';
 
 const WIDTH_RESOLUTIONS = {low: 800, medium: 1280, high: 1920, ultra: 2560};
 const HEIGHT_RESOLUTIONS = {low: 600, medium: 720, high: 1080, ultra: 1440};
@@ -57,17 +58,41 @@ function App() {
   const lastUIUpdateRef = useRef(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  
+  // Load saved environment settings and sample frequency on startup
   useEffect(() => {
-    
+    // Load environment settings
+    loadEnvironmentSettings().then(savedSettings => {
+      if (savedSettings) {
+        console.log('Restoring environment settings from IndexedDB:', savedSettings);
+        world.setEnvironmentParams(savedSettings);
+        forceUpdate({}); // Force UI update to reflect loaded settings
+      }
+    }).catch(err => {
+      console.error('Failed to load environment settings:', err);
+    });
+
+    // Load sample frequency
+    loadSampleFrequency().then(savedFrequency => {
+      if (savedFrequency !== null) {
+        console.log('Restoring sample frequency from IndexedDB:', savedFrequency);
+        world.statsTracker.setSampleFrequency(savedFrequency);
+      }
+    }).catch(err => {
+      console.error('Failed to load sample frequency:', err);
+    });
+  }, [world]);
+
+
+  useEffect(() => {
+
     world.spawnInitialPopulation();
 
-    
+
     gameEngine.setUpdateCallback(() => {
       updateCounterRef.current++;
 
-      
-      
+
+
       if (updateCounterRef.current - lastUIUpdateRef.current >= 30) {
         lastUIUpdateRef.current = updateCounterRef.current;
         forceUpdate({});
@@ -80,7 +105,7 @@ function App() {
       }
     });
 
-    
+
     gameEngine.start();
 
     return () => {
@@ -115,9 +140,14 @@ function App() {
   const handleEnvironmentChange = (params) => {
     if (params.restart) {
       world.spawnInitialPopulation();
-      setHighlightedSpeciesId(null); 
+      setHighlightedSpeciesId(null);
     } else {
       world.setEnvironmentParams(params);
+
+      // Auto-save environment settings to IndexedDB
+      saveEnvironmentSettings(world.getEnvironmentParams()).catch(err => {
+        console.error('Failed to save environment settings:', err);
+      });
     }
     forceUpdate({});
   };
@@ -195,6 +225,11 @@ function App() {
 
   const handleUpdateSampleFrequency = (frequency) => {
     world.statsTracker.setSampleFrequency(frequency);
+
+    // Auto-save sample frequency to IndexedDB
+    saveSampleFrequency(frequency).catch(err => {
+      console.error('Failed to save sample frequency:', err);
+    });
   };
 
   const handleResetView = () => {

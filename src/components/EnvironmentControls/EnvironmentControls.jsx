@@ -1,47 +1,75 @@
+import { useState, useEffect } from 'react';
+
 /**
  * EnvironmentControls - Control environmental parameters
  */
 export function EnvironmentControls({ world, onEnvironmentChange }) {
+  const [saveIndicator, setSaveIndicator] = useState(false);
 
+
+  // Show save indicator briefly when settings change
+  const showSaveIndicator = () => {
+    setSaveIndicator(true);
+    setTimeout(() => setSaveIndicator(false), 1500);
+  };
 
   const handleFoodRateChange = (e) => {
     const rate = parseFloat(e.target.value);
     onEnvironmentChange({ foodSpawnRate: rate });
+    showSaveIndicator();
   };
 
   const handleTemperatureChange = (e) => {
     const temp = parseFloat(e.target.value);
     onEnvironmentChange({ temperature: temp });
+    showSaveIndicator();
   };
 
   const handleMutationRateChange = (e) => {
     const rate = parseFloat(e.target.value);
     onEnvironmentChange({ mutationRate: rate });
+    showSaveIndicator();
   };
 
   const handleInitialPopChange = (e) => {
     const pop = parseInt(e.target.value);
     onEnvironmentChange({ initialPopulation: pop });
+    showSaveIndicator();
   };
 
   const handleInitialFoodChange = (e) => {
     const val = parseInt(e.target.value);
     onEnvironmentChange({ initialFoodCount: val });
+    showSaveIndicator();
   };
 
   const handleInitialSpeciesChange = (e) => {
     const val = parseInt(e.target.value);
     onEnvironmentChange({ initialSpecies: val });
+    showSaveIndicator();
   };
 
   const handleSeparationChange = (e) => {
     const val = parseInt(e.target.value);
     onEnvironmentChange({ separationSections: val });
+    showSaveIndicator();
   };
 
   return (
     <div className="environment-controls">
-      <h2>Environment Parameters</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2>Environment Parameters</h2>
+        {saveIndicator && (
+          <span style={{
+            fontSize: '12px',
+            color: '#4CAF50',
+            opacity: saveIndicator ? 1 : 0,
+            transition: 'opacity 0.3s'
+          }}>
+            ✓ Saved
+          </span>
+        )}
+      </div>
 
       <div className="control-group">
         <div className="control-header">

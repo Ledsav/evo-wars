@@ -2,6 +2,26 @@ import { useEffect, useRef, useState } from 'react';
 import './Statistics.css';
 
 /**
+ * Format elapsed time (seconds) into a human-readable string
+ */
+function formatElapsedTime(seconds) {
+  if (seconds < 60) {
+    return Math.floor(seconds) + 's';
+  }
+  if (seconds < 3600) {
+    const minutes = Math.floor(seconds / 60);
+    return minutes + 'm';
+  }
+  if (seconds < 86400) {
+    const hours = Math.floor(seconds / 3600);
+    return hours + 'h';
+  }
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  return days + 'd ' + hours + 'h';
+}
+
+/**
  * LineChart - Lightweight canvas-based line chart component
  */
 function LineChart({ data, lines, width = 400, height = 200, title }) {
@@ -83,7 +103,7 @@ function LineChart({ data, lines, width = 400, height = 200, title }) {
       ctx.fillText(value.toFixed(0), padding.left - 10, y + 4);
     }
 
-    
+
     const xSteps = 5;
     for (let i = 0; i <= xSteps; i++) {
       const x = padding.left + (chartWidth / xSteps) * i;
@@ -92,12 +112,12 @@ function LineChart({ data, lines, width = 400, height = 200, title }) {
       ctx.lineTo(x, padding.top + chartHeight);
       ctx.stroke();
 
-      
+
       const time = minTime + (timeRange / xSteps) * i;
       ctx.fillStyle = '#888888';
       ctx.font = '11px system-ui';
       ctx.textAlign = 'center';
-      ctx.fillText(time.toFixed(0) + 's', x, height - 10);
+      ctx.fillText(formatElapsedTime(time), x, height - 10);
     }
 
     
@@ -161,7 +181,10 @@ function LineChart({ data, lines, width = 400, height = 200, title }) {
  * Statistics - Display simulation statistics with time-series charts
  */
 export function Statistics({ statsTracker, onUpdateSampleFrequency }) {
-  const [sampleFrequency, setSampleFrequency] = useState(1); 
+  // Initialize from statsTracker's current value (which may be loaded from storage)
+  const [sampleFrequency, setSampleFrequency] = useState(() => {
+    return statsTracker.sampleFrequency * 100; // Convert to percentage
+  });
 
 
   const data = statsTracker.getData();
@@ -169,9 +192,9 @@ export function Statistics({ statsTracker, onUpdateSampleFrequency }) {
   const dataPoints = statsTracker.getDataPointCount();
 
   const handleFrequencyChange = (e) => {
-    const value = parseInt(e.target.value);
+    const value = parseFloat(e.target.value);
     setSampleFrequency(value);
-    onUpdateSampleFrequency(value / 100); 
+    onUpdateSampleFrequency(value / 100);
   };
 
 
@@ -200,6 +223,14 @@ export function Statistics({ statsTracker, onUpdateSampleFrequency }) {
     { key: 'combatKills', label: 'Combat Kills', color: '#F44336', enabled: true },
   ];
 
+  const cooperationLines = [
+    { key: 'cooperationEvents', label: 'Cooperation Events', color: '#9C27B0', enabled: true },
+  ];
+
+  const genomeLines = [
+    { key: 'averageGenomeLength', label: 'Avg Genome Length', color: '#00BCD4', enabled: true },
+  ];
+
   return (
     <div className="statistics">
       <h2>Simulation Statistics</h2>
@@ -226,6 +257,14 @@ export function Statistics({ statsTracker, onUpdateSampleFrequency }) {
           <div className="stat-label">Combat Kills</div>
           <div className="stat-value">{latest.combatKills}</div>
         </div>
+        <div className="stat-card">
+          <div className="stat-label">Cooperation Events</div>
+          <div className="stat-value">{latest.cooperationEvents}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Avg Genome Length</div>
+          <div className="stat-value">{latest.averageGenomeLength.toFixed(1)}</div>
+        </div>
       </div>
 
       {/* Sampling controls */}
@@ -234,14 +273,15 @@ export function Statistics({ statsTracker, onUpdateSampleFrequency }) {
           Sample Frequency: {sampleFrequency}% ({dataPoints} points)
           <input
             type="range"
-            min="1"
-            max="20"
+            min="0.1"
+            max="5"
+            step="0.1"
             value={sampleFrequency}
             onChange={handleFrequencyChange}
             className="slider"
           />
           <div className="control-hint">
-            Lower = better performance, Higher = more detail
+            Lower = better performance, Higher = more detail (0.1% - 5% range)
           </div>
         </label>
 
@@ -323,6 +363,20 @@ export function Statistics({ statsTracker, onUpdateSampleFrequency }) {
             width={450}
             height={220}
             title="Combat Kills Over Time"
+          />
+          <LineChart
+            data={data}
+            lines={cooperationLines}
+            width={450}
+            height={220}
+            title="Cooperation Events Over Time"
+          />
+          <LineChart
+            data={data}
+            lines={genomeLines}
+            width={450}
+            height={220}
+            title="Average Genome Complexity Over Time"
           />
         </div>
       ) : (

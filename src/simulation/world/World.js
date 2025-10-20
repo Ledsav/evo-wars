@@ -67,6 +67,9 @@ export class World {
     // Combat statistics
     this.combatKills = 0;
 
+    // Cooperation statistics
+    this.cooperationEvents = 0;
+
     // Species tracking for phylotype-based speciation
     this.speciesFounders = new Map(); // Map of organism ID -> organism (species founders)
     this.speciationEvents = []; // Log of speciation events
@@ -588,6 +591,7 @@ export class World {
       if (cooperated1 || cooperated2) {
         org1._lastCooperation = Date.now();
         org2._lastCooperation = Date.now();
+        this.cooperationEvents++; // Increment cooperation counter
       }
 
       // Push apart and return
@@ -1044,6 +1048,21 @@ export class World {
       // Redistribute existing organisms when sections change
       this.redistributeOrganismsToSections();
     }
+  }
+
+  /**
+   * Get current environment parameters
+   */
+  getEnvironmentParams() {
+    return {
+      foodSpawnRate: this.foodSpawnRate,
+      temperature: this.temperature,
+      mutationRate: this.mutationRate,
+      initialPopulation: this.initialPopulation,
+      initialFoodCount: this.initialFoodCount,
+      initialSpecies: this.initialSpecies,
+      separationSections: this.separationSections,
+    };
   }
 
   /**
