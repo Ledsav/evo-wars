@@ -46,7 +46,7 @@ export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomI
   const stats = world.getStats();
 
   const formatElapsedTime = (seconds) => {
-    // return hours if less than a day, otherwise days and hours
+    
     if (seconds < 86400) {
       const hours = Math.floor(seconds / 3600);
       return hours + 'h';

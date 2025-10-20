@@ -7,22 +7,22 @@ import { OrganismRenderer } from '../../rendering/OrganismRenderer';
 export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, highlightedSpeciesId = null, overlays = {} }, ref) => {
   const canvasRef = useRef(null);
 
-  // Zoom and pan state
+  
   const [viewTransform, setViewTransform] = useState({
     scale: 1,
     offsetX: 0,
     offsetY: 0
   });
 
-  // Pan state
+  
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
-  // Touch state for gestures
+  
   const [_touches, setTouches] = useState([]);
   const [lastTouchDistance, setLastTouchDistance] = useState(0);
 
-  // Expose render and resetView functions to parent component
+  
   useImperativeHandle(ref, () => ({
     render: () => {
       const canvas = canvasRef.current;
@@ -30,31 +30,31 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
 
       const ctx = canvas.getContext('2d');
 
-      // Clear canvas
+      
       ctx.clearRect(0, 0, width, height);
 
-      // Save context state
+      
       ctx.save();
 
-      // Apply zoom and pan transformation
+      
       ctx.translate(viewTransform.offsetX, viewTransform.offsetY);
       ctx.scale(viewTransform.scale, viewTransform.scale);
 
-      // Clear and render background
+      
       OrganismRenderer.renderBackground(ctx, width, height);
 
-      // Render section walls (if enabled)
+      
       OrganismRenderer.renderSectionWalls(ctx, world);
 
-      // Calculate visible area for frustum culling (accounting for zoom)
+      
       const visibleLeft = -viewTransform.offsetX / viewTransform.scale;
       const visibleTop = -viewTransform.offsetY / viewTransform.scale;
       const visibleWidth = width / viewTransform.scale;
       const visibleHeight = height / viewTransform.scale;
 
-      // Render food (with frustum culling)
+      
       for (const food of world.foodParticles) {
-        // Skip rendering if off-screen (accounting for zoom)
+        
         if (food.x + food.radius < visibleLeft || food.x - food.radius > visibleLeft + visibleWidth ||
             food.y + food.radius < visibleTop || food.y - food.radius > visibleTop + visibleHeight) {
           continue;
@@ -62,12 +62,12 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
         OrganismRenderer.renderFood(ctx, food);
       }
 
-      // Render organisms (with frustum culling)
+      
       for (const organism of world.organisms) {
         const size = organism.phenotype?.size || 10;
-        const margin = size + 30; // Extra margin for energy bars and effects
+        const margin = size + 30; 
 
-        // Skip rendering if off-screen (accounting for zoom)
+        
         if (organism.x + margin < visibleLeft || organism.x - margin > visibleLeft + visibleWidth ||
             organism.y + margin < visibleTop || organism.y - margin > visibleTop + visibleHeight) {
           continue;
@@ -75,10 +75,11 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
 
         const isHighlighted = highlightedSpeciesId !== null &&
                             organism.getSpeciesId() === highlightedSpeciesId;
-        OrganismRenderer.render(ctx, organism, isHighlighted, overlays || {});
+        
+        OrganismRenderer.render(ctx, organism, isHighlighted, overlays || {}, { scale: viewTransform.scale });
       }
 
-      // Restore context state
+      
       ctx.restore();
     },
     resetView: () => {
@@ -91,7 +92,7 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
     getCanvasElement: () => canvasRef.current
   }), [world, width, height, highlightedSpeciesId, overlays, viewTransform]);
 
-  // Handle zoom with mouse wheel or trackpad pinch
+  
   const handleWheel = useCallback((e) => {
     e.preventDefault();
 
@@ -102,29 +103,29 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    // Determine zoom delta
+    
     let delta = -e.deltaY;
 
-    // Normalize wheel delta (different browsers/devices have different scales)
-    if (e.deltaMode === 1) { // DOM_DELTA_LINE
+    
+    if (e.deltaMode === 1) { 
       delta *= 33;
-    } else if (e.deltaMode === 2) { // DOM_DELTA_PAGE
+    } else if (e.deltaMode === 2) { 
       delta *= 100;
     }
 
-    // Calculate zoom factor (0.1% per pixel of wheel movement)
+    
     const zoomFactor = 1 + (delta * 0.001);
-    const newScale = Math.max(1, Math.min(5, viewTransform.scale * zoomFactor)); // Min 1x (no zoom out), max 5x
+    const newScale = Math.max(1, Math.min(5, viewTransform.scale * zoomFactor)); 
 
-    // Calculate world position of mouse before zoom
+    
     const worldX = (mouseX - viewTransform.offsetX) / viewTransform.scale;
     const worldY = (mouseY - viewTransform.offsetY) / viewTransform.scale;
 
-    // Calculate new offset to keep mouse position fixed
+    
     let newOffsetX = mouseX - worldX * newScale;
     let newOffsetY = mouseY - worldY * newScale;
 
-    // Apply pan limits to prevent panning beyond world bounds
+    
     const minOffsetX = width - (width * newScale);
     const maxOffsetX = 0;
     const minOffsetY = height - (height * newScale);
@@ -140,9 +141,9 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
     });
   }, [width, height, viewTransform]);
 
-  // Handle panning with mouse drag
+  
   const handleMouseDown = (e) => {
-    if (e.button === 0) { // Left mouse button
+    if (e.button === 0) { 
       setIsPanning(true);
       setPanStart({ x: e.clientX, y: e.clientY });
     }
@@ -158,7 +159,7 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
       const newOffsetX = prev.offsetX + dx;
       const newOffsetY = prev.offsetY + dy;
 
-      // Calculate pan limits to keep world visible
+      
       const minOffsetX = width - (width * prev.scale);
       const maxOffsetX = 0;
       const minOffsetY = height - (height * prev.scale);
@@ -178,7 +179,7 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
     setIsPanning(false);
   }, []);
 
-  // Reset zoom
+  
   const handleDoubleClick = () => {
     setViewTransform({
       scale: 1,
@@ -187,7 +188,7 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
     });
   };
 
-  // Touch event handlers for mobile gestures
+  
   const getTouchDistance = (touch1, touch2) => {
     const dx = touch2.clientX - touch1.clientX;
     const dy = touch2.clientY - touch1.clientY;
@@ -202,17 +203,17 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
   };
 
   const handleTouchStart = useCallback((e) => {
-    e.preventDefault(); // Prevent default touch behavior
+    e.preventDefault(); 
 
     const touchList = Array.from(e.touches);
     setTouches(touchList);
 
     if (touchList.length === 1) {
-      // Single touch - start panning
+      
       setIsPanning(true);
       setPanStart({ x: touchList[0].clientX, y: touchList[0].clientY });
     } else if (touchList.length === 2) {
-      // Two touches - start pinch zoom
+      
       setIsPanning(false);
       const distance = getTouchDistance(touchList[0], touchList[1]);
       setLastTouchDistance(distance);
@@ -220,12 +221,12 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
   }, []);
 
   const handleTouchMove = useCallback((e) => {
-    e.preventDefault(); // Prevent default touch behavior
+    e.preventDefault(); 
 
     const touchList = Array.from(e.touches);
 
     if (touchList.length === 1 && isPanning) {
-      // Single touch panning
+      
       const dx = touchList[0].clientX - panStart.x;
       const dy = touchList[0].clientY - panStart.y;
 
@@ -233,7 +234,7 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
         const newOffsetX = prev.offsetX + dx;
         const newOffsetY = prev.offsetY + dy;
 
-        // Calculate pan limits
+        
         const minOffsetX = width - (width * prev.scale);
         const maxOffsetX = 0;
         const minOffsetY = height - (height * prev.scale);
@@ -248,7 +249,7 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
 
       setPanStart({ x: touchList[0].clientX, y: touchList[0].clientY });
     } else if (touchList.length === 2) {
-      // Pinch zoom
+      
       const canvas = canvasRef.current;
       if (!canvas) return;
 
@@ -259,19 +260,19 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
       const centerX = center.x - rect.left;
       const centerY = center.y - rect.top;
 
-      // Calculate zoom factor from distance change
+      
       const zoomFactor = distance / lastTouchDistance;
       const newScale = Math.max(1, Math.min(5, viewTransform.scale * zoomFactor));
 
-      // Calculate world position of touch center before zoom
+      
       const worldX = (centerX - viewTransform.offsetX) / viewTransform.scale;
       const worldY = (centerY - viewTransform.offsetY) / viewTransform.scale;
 
-      // Calculate new offset to keep touch center fixed
+      
       let newOffsetX = centerX - worldX * newScale;
       let newOffsetY = centerY - worldY * newScale;
 
-      // Apply pan limits
+      
       const minOffsetX = width - (width * newScale);
       const maxOffsetX = 0;
       const minOffsetY = height - (height * newScale);
@@ -299,29 +300,29 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
     setTouches(touchList);
 
     if (touchList.length === 0) {
-      // All touches released
+      
       setIsPanning(false);
       setLastTouchDistance(0);
     } else if (touchList.length === 1) {
-      // One touch remaining - restart panning
+      
       setIsPanning(true);
       setPanStart({ x: touchList[0].clientX, y: touchList[0].clientY });
       setLastTouchDistance(0);
     }
   }, []);
 
-  // Initial render
+  
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !ref) return;
 
-    // Trigger initial render
+    
     if (ref.current && ref.current.render) {
       ref.current.render();
     }
   }, [world, ref]);
 
-  // Add wheel event listener with passive: false to allow preventDefault
+  
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -332,7 +333,7 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
     };
   }, [handleWheel]);
 
-  // Add/remove event listeners for panning
+  
   useEffect(() => {
     if (isPanning) {
       window.addEventListener('mousemove', handleMouseMove);
@@ -344,7 +345,7 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
     }
   }, [handleMouseMove, handleMouseUp, isPanning]);
 
-  // Add touch event listeners
+  
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -379,8 +380,8 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
         maxHeight: '100%',
         objectFit: 'contain',
         cursor: isPanning ? 'grabbing' : 'grab',
-        touchAction: 'none', // Disable browser touch handling for custom gestures
-        WebkitUserSelect: 'none', // Prevent text selection on mobile
+        touchAction: 'none', 
+        WebkitUserSelect: 'none', 
         userSelect: 'none'
       }}
     />

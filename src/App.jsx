@@ -19,7 +19,7 @@ const WIDTH_RESOLUTIONS = {low: 800, medium: 1280, high: 1920, ultra: 2560};
 const HEIGHT_RESOLUTIONS = {low: 600, medium: 720, high: 1080, ultra: 1440};
 
 function App() {
-  // Detect mobile and set appropriate initial world size
+  
   const isMobile = isMobileDevice();
   const initialSize = isMobile 
     ? getRecommendedWorldSize() 
@@ -29,12 +29,12 @@ function App() {
   const [world] = useState(() => {
     const w = new World(initialSize.width, initialSize.height);
     
-    // Optimize for mobile devices
+    
     if (isMobile) {
-      w.initialPopulation = 50; // Fewer organisms on mobile
-      w.initialFoodCount = window.innerWidth <= 480 ? 200 : 400; // Fewer food particles
-      w.updateBatchSize = 30; // Smaller update batches for smoother performance
-      w.foodSpawnRate = 0.3; // Slower food spawn rate
+      w.initialPopulation = 50; 
+      w.initialFoodCount = window.innerWidth <= 480 ? 200 : 400; 
+      w.updateBatchSize = 30; 
+      w.foodSpawnRate = 0.3; 
     }
     
     return w;
@@ -57,17 +57,17 @@ function App() {
   const lastUIUpdateRef = useRef(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // Initialize game
+  
   useEffect(() => {
-    // Spawn initial population
+    
     world.spawnInitialPopulation();
 
-    // Setup game engine callbacks
+    
     gameEngine.setUpdateCallback(() => {
       updateCounterRef.current++;
 
-      // Only trigger React re-renders every 30 frames (~500ms at 60fps)
-      // This prevents UI components from re-rendering on every simulation tick
+      
+      
       if (updateCounterRef.current - lastUIUpdateRef.current >= 30) {
         lastUIUpdateRef.current = updateCounterRef.current;
         forceUpdate({});
@@ -80,7 +80,7 @@ function App() {
       }
     });
 
-    // Start game
+    
     gameEngine.start();
 
     return () => {
@@ -88,7 +88,7 @@ function App() {
     };
   }, [world, gameEngine]);
 
-  // Hook notifications to genealogy events
+  
   useEffect(() => {
     const gt = world.genealogyTracker;
     if (!gt) return;
@@ -115,7 +115,7 @@ function App() {
   const handleEnvironmentChange = (params) => {
     if (params.restart) {
       world.spawnInitialPopulation();
-      setHighlightedSpeciesId(null); // Clear highlight on restart
+      setHighlightedSpeciesId(null); 
     } else {
       world.setEnvironmentParams(params);
     }
@@ -124,7 +124,7 @@ function App() {
 
   const handleRestart = () => {
     world.spawnInitialPopulation();
-    setHighlightedSpeciesId(null); // Clear highlight on restart
+    setHighlightedSpeciesId(null); 
     forceUpdate({});
   };
 
@@ -142,12 +142,12 @@ function App() {
       height: Math.floor(baseHeight * newZoom)
     };
 
-    // Update world dimensions
+    
     world.width = newSize.width;
     world.height = newSize.height;
     setWorldSize(newSize);
 
-    // Redistribute food to fit new bounds
+    
     world.redistributeFood();
 
     forceUpdate({});
@@ -163,18 +163,18 @@ function App() {
       height: Math.floor(baseHeight * newZoom)
     };
 
-    // Update world dimensions
+    
     world.width = newSize.width;
     world.height = newSize.height;
     setWorldSize(newSize);
 
-    // Keep organisms in bounds
+    
     for (const organism of world.organisms) {
       organism.x = Math.min(organism.x, newSize.width - 20);
       organism.y = Math.min(organism.y, newSize.height - 20);
     }
 
-    // Redistribute food to fit new bounds
+    
     world.redistributeFood();
 
     forceUpdate({});
@@ -187,7 +187,7 @@ function App() {
     world.height = newSize.height;
     setWorldSize(newSize);
 
-    // Redistribute food to fit new bounds
+    
     world.redistributeFood();
 
     forceUpdate({});

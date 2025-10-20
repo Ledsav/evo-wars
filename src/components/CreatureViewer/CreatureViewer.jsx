@@ -4,15 +4,16 @@ import { CompareIcon, InfoIcon } from '../shared/Icons/Icons';
 import { ComparisonPopup } from './ComparisonPopup';
 import { GenomePopup } from './GenomePopup';
 
-// Exact renderer thumbnail -> data URL, cached per species representative and DPR
-function SpeciesThumbnailExact({ speciesId, organism, size = 40, thumbCacheRef }) {
-  // Derive stable keys to avoid effect loops
+
+
+function SpeciesThumbnailExact({ speciesId, organism, size = 64, thumbCacheRef }) {
+  
   const repId = organism && typeof organism.id !== 'undefined'
     ? organism.id
     : (organism && typeof organism.name === 'function' ? organism.name : 'unknown');
   const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) ? window.devicePixelRatio : 1;
 
-  // Seed initial URL from cache synchronously to avoid a blink
+  
   const initialUrl = (() => {
     if (!speciesId || !repId || !thumbCacheRef?.current) return '';
     const cached = thumbCacheRef.current.get(speciesId);
@@ -24,7 +25,7 @@ function SpeciesThumbnailExact({ speciesId, organism, size = 40, thumbCacheRef }
 
   const [url, setUrl] = useState(initialUrl);
 
-  // Keep the organism object in a ref so the effect doesn't depend on its identity
+  
   const repRef = useRef(null);
   useEffect(() => {
     repRef.current = organism;
@@ -36,15 +37,19 @@ function SpeciesThumbnailExact({ speciesId, organism, size = 40, thumbCacheRef }
     const cache = thumbCacheRef.current;
     const cached = cache.get(speciesId);
     if (cached && cached.repId === repId && cached.dpr === dpr && cached.url) {
-      // Setting the same value is a no-op; avoids dependency on `url`
+      
       setUrl(cached.url);
       return;
     }
 
-    // Generate once offscreen using the real renderer for exact appearance
+    
     const off = document.createElement('canvas');
-    off.width = size;
-    off.height = size;
+    const hiResSize = size * Math.max(2, dpr); 
+    off.width = hiResSize;
+    off.height = hiResSize;
+    off.style.width = `${size}px`;
+    off.style.height = `${size}px`;
+
     try {
       if (!repRef.current) return;
       OrganismRenderer.renderThumbnail(off, repRef.current);
@@ -52,14 +57,14 @@ function SpeciesThumbnailExact({ speciesId, organism, size = 40, thumbCacheRef }
       cache.set(speciesId, { repId, dpr, url: dataUrl });
       setUrl(dataUrl);
     } catch {
-      // If rendering fails, store a sentinel to avoid loops
+      
       cache.set(speciesId, { repId, dpr, url: null });
     }
-    // Only rerun when species id, representative id, size, or DPR changes
+    
   }, [speciesId, repId, size, dpr, thumbCacheRef]);
 
   if (!url) return null;
-  return <img className="species-thumb" src={url} alt="species thumbnail" />;
+  return <img className="species-thumb" src={url} alt="species thumbnail" style={{ width: `${size}px`, height: `${size}px` }} />;
 }
 
 /**
@@ -71,14 +76,14 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
   const [selectedForComparison, setSelectedForComparison] = useState(new Set());
   const [comparisonOrganisms, setComparisonOrganisms] = useState(null);
   const [updateTrigger, setUpdateTrigger] = useState(0);
-  const [visibleCount, setVisibleCount] = useState(3); // Show top 3 by default
+  const [visibleCount, setVisibleCount] = useState(3); 
 
-  // Persist a stable representative per species across renders
+  
   const repMapRef = useRef({});
-  // Cache generated thumbnails per species representative to avoid re-rendering
+  
   const thumbCacheRef = useRef(new Map());
 
-  // Throttle updates - only update every 500ms instead of every frame
+  
   useEffect(() => {
     const interval = setInterval(() => {
       setUpdateTrigger(prev => prev + 1);
@@ -87,7 +92,7 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
     return () => clearInterval(interval);
   }, []);
 
-  // Handle species selection for highlighting
+  
   const handleSpeciesClick = (speciesId) => {
     const newSelection = selectedSpecies === speciesId ? null : speciesId;
     setSelectedSpecies(newSelection);
@@ -96,7 +101,7 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
     }
   };
 
-  // Handle checkbox selection for comparison
+  
   const handleComparisonToggle = (speciesId) => {
     const newSelection = new Set(selectedForComparison);
     if (newSelection.has(speciesId)) {
@@ -107,7 +112,7 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
     setSelectedForComparison(newSelection);
   };
 
-  // Open comparison popup
+  
   const handleOpenComparison = () => {
     const organisms = species
       .filter(sp => selectedForComparison.has(sp.id))
@@ -115,23 +120,23 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
     setComparisonOrganisms(organisms);
   };
 
-  // Close comparison popup
+  
   const handleCloseComparison = () => {
     setComparisonOrganisms(null);
   };
 
-  // Select all species for comparison
+  
   const handleSelectAll = () => {
     const allSpeciesIds = new Set(species.map(sp => sp.id));
     setSelectedForComparison(allSpeciesIds);
   };
 
-  // Deselect all species
+  
   const handleDeselectAll = () => {
     setSelectedForComparison(new Set());
   };
 
-  // Group organisms by species - memoized and throttled to avoid constant re-calculation
+  
   const species = useMemo(() => {
     const groups = {};
     const alive = world.getAliveOrganisms();
@@ -149,7 +154,7 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
 
     const result = Object.values(groups);
 
-    // Assign stable representatives per species
+    
     for (const sp of result) {
       const storedId = repMapRef.current[sp.id];
       let rep = null;
@@ -157,8 +162,20 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
         rep = sp.organisms.find(o => o.id === storedId) || null;
       }
       if (!rep) {
-        // Pick deterministic representative: lowest id in the species
-        rep = sp.organisms.reduce((min, o) => (min == null || o.id < min.id ? o : min), null);
+        
+        const idCounts = new Map();
+        for (const o of sp.organisms) {
+          idCounts.set(o.id, (idCounts.get(o.id) || 0) + 1);
+        }
+        let maxCount = 0;
+        let mostCommonId = null;
+        for (const [id, count] of idCounts) {
+          if (count > maxCount) {
+            maxCount = count;
+            mostCommonId = id;
+          }
+        }
+        rep = sp.organisms.find(o => o.id === mostCommonId) || sp.organisms[0];
         if (rep) {
           repMapRef.current[sp.id] = rep.id;
         }
@@ -166,14 +183,16 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
       sp.representative = rep || sp.organisms[0];
     }
 
-    // Sort by population (descending - largest first)
+    
     result.sort((a, b) => b.organisms.length - a.organisms.length);
 
     return result;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [updateTrigger]); // Only recalculate when updateTrigger changes (every 500ms)
+  
+  }, [updateTrigger]); 
 
-  // Get visible species based on current count
+  
+
+  
   const visibleSpecies = useMemo(() => {
     return species.slice(0, visibleCount);
   }, [species, visibleCount]);
@@ -285,7 +304,7 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
               className="species-item-main"
               onClick={() => handleSpeciesClick(sp.id)}
             >
-              <SpeciesThumbnailExact speciesId={sp.id} organism={sp.representative} size={40} thumbCacheRef={thumbCacheRef} />
+              <SpeciesThumbnailExact speciesId={sp.id} organism={sp.representative} size={64} thumbCacheRef={thumbCacheRef} />
               <div className="species-info">
                 <div className="species-name">
                   {(() => {

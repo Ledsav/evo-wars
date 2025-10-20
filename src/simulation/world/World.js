@@ -37,9 +37,14 @@ export class World {
     this.grid = new Map(); // Map of "x,y" -> Set of organisms
     this.foodGrid = new Map(); // Map of "x,y" -> Set of food particles
 
-    // Staggered update system
-    this.updateBatchSize = 50; // Update AI for N organisms per frame
+    // Staggered update system with dynamic batch sizing
+    this.updateBatchSize = 50; // Base update AI for N organisms per frame
     this.currentUpdateIndex = 0;
+    this.targetUpdatesPerFrame = 2; // Target: update all organisms within N frames
+
+    // Priority-based update tracking
+    this.organismPriorities = new Map(); // organism -> priority score
+    this.lastPriorityUpdate = 0;
 
     // Object pooling for food particles
     this.foodPool = new ObjectPool(
@@ -368,6 +373,61 @@ export class World {
   }
 
   /**
+   * Calculate update priority for an organism (higher = more urgent)
+   */
+  calculateUpdatePriority(organism) {
+    const energyRatio = organism.energy / organism.maxEnergy;
+    let priority = 1.0;
+
+    // High priority for low energy (starving)
+    if (energyRatio < 0.3) {
+      priority += (0.3 - energyRatio) * 5; // Up to +1.5 priority
+    }
+
+    // High priority if can reproduce (important decision)
+    if (organism.canReproduce()) {
+      priority += 1.0;
+    }
+
+    // Medium priority if moving fast (likely in combat or fleeing)
+    const speed = Math.hypot(organism.vx, organism.vy);
+    if (speed > 0.5) {
+      priority += speed * 0.5;
+    }
+
+    return priority;
+  }
+
+  /**
+   * Update organism priorities (called periodically, not every frame)
+   */
+  updateOrganismPriorities() {
+    this.organismPriorities.clear();
+
+    for (const organism of this.organisms) {
+      if (!organism.isAlive) continue;
+      const priority = this.calculateUpdatePriority(organism);
+      this.organismPriorities.set(organism, priority);
+    }
+  }
+
+  /**
+   * Get organisms sorted by update priority
+   */
+  getPrioritizedOrganisms() {
+    const organisms = Array.from(this.organisms);
+
+    // Sort by priority (descending)
+    organisms.sort((a, b) => {
+      const priorityA = this.organismPriorities.get(a) || 1;
+      const priorityB = this.organismPriorities.get(b) || 1;
+      return priorityB - priorityA;
+    });
+
+    return organisms;
+  }
+
+  /**
    * Update world (called each frame)
    */
   update(deltaTime) {
@@ -385,13 +445,26 @@ export class World {
       this.updateGrid(organism);
     }
 
-    // Staggered AI updates (only update a batch per frame)
-    const batchSize = Math.min(this.updateBatchSize, this.organisms.length);
+    // Update priorities every 500ms
+    if (this.time - this.lastPriorityUpdate > 500) {
+      this.updateOrganismPriorities();
+      this.lastPriorityUpdate = this.time;
+    }
+
+    // Dynamic batch sizing: aim to update all organisms within targetUpdatesPerFrame frames
+    const dynamicBatchSize = Math.ceil(this.organisms.length / this.targetUpdatesPerFrame);
+    const batchSize = Math.min(Math.max(20, dynamicBatchSize), this.organisms.length);
+
+    // Get prioritized organisms for this frame
+    const prioritizedOrganisms = this.organismPriorities.size > 0
+      ? this.getPrioritizedOrganisms()
+      : this.organisms;
+
     const startIdx = this.currentUpdateIndex;
 
     for (let i = 0; i < batchSize; i++) {
-      const idx = (startIdx + i) % this.organisms.length;
-      const organism = this.organisms[idx];
+      const idx = (startIdx + i) % prioritizedOrganisms.length;
+      const organism = prioritizedOrganisms[idx];
 
       if (!organism) continue;
 
@@ -408,7 +481,7 @@ export class World {
     }
 
     // Move to next batch for next frame
-    this.currentUpdateIndex = (this.currentUpdateIndex + batchSize) % Math.max(1, this.organisms.length);
+    this.currentUpdateIndex = (this.currentUpdateIndex + batchSize) % Math.max(1, prioritizedOrganisms.length);
 
     // Handle collisions
     this.handleCollisions();

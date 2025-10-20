@@ -8,9 +8,9 @@ import { RadarChart } from './RadarChart';
  * ComparisonPopup - Side-by-side comparison of organism radar charts
  */
 export function ComparisonPopup({ organisms, onClose }) {
-  const [viewMode, setViewMode] = useState('multiple'); // 'single' or 'multiple'
+  const [viewMode, setViewMode] = useState('multiple'); 
 
-  // Don't render if no organisms selected
+  
   if (!organisms || organisms.length === 0) return null;
 
   return createPortal(
@@ -108,17 +108,17 @@ export function ComparisonPopup({ organisms, onClose }) {
   );
 }
 
-// Helper function to get consistent colors for organisms
+
 function getOrganismColor(index) {
   const colors = [
-    '#4ade80', // Green
-    '#60a5fa', // Blue
-    '#a78bfa', // Purple
-    '#f472b6', // Pink
-    '#fb923c', // Orange
-    '#34d399', // Emerald
-    '#ef4444', // Red
-    '#fbbf24', // Yellow
+    '#4ade80', 
+    '#60a5fa', 
+    '#a78bfa', 
+    '#f472b6', 
+    '#fb923c', 
+    '#34d399', 
+    '#ef4444', 
+    '#fbbf24', 
   ];
   return colors[index % colors.length];
 }

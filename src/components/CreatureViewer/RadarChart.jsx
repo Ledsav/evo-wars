@@ -14,7 +14,7 @@ export function RadarChart({ organism }) {
   const svgRef = useRef(null);
   const { notify } = useNotifications();
 
-  // Debounced hover handlers to prevent flickering
+  
   const handleHoverEnter = (index) => {
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
@@ -31,7 +31,7 @@ export function RadarChart({ organism }) {
     }, 50);
   };
 
-  // Cleanup timeout on unmount
+  
   useEffect(() => {
     return () => {
       if (hoverTimeoutRef.current) {
@@ -40,13 +40,17 @@ export function RadarChart({ organism }) {
     };
   }, []);
 
-  // Generate creature thumbnail for center
+  
   useEffect(() => {
     if (!organism) return;
-
     const canvas = document.createElement('canvas');
-    canvas.width = 80;
-    canvas.height = 80;
+    const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) ? window.devicePixelRatio : 1;
+    const size = 80;
+    const hiResSize = size * Math.max(2, dpr); 
+    canvas.width = hiResSize;
+    canvas.height = hiResSize;
+    canvas.style.width = `${size}px`;
+    canvas.style.height = `${size}px`;
 
     try {
       OrganismRenderer.renderThumbnail(canvas, organism);
@@ -61,7 +65,7 @@ export function RadarChart({ organism }) {
     return null;
   }
 
-  // Define traits to display with normalization functions
+  
   const traits = [
     {
       name: 'Size',
@@ -113,25 +117,25 @@ export function RadarChart({ organism }) {
     }
   ];
 
-  // Calculate trait values
+  
   const traitData = traits.map(trait => ({
     ...trait,
     rawValue: organism.phenotype[trait.key] || 0,
     value: trait.normalize(organism.phenotype[trait.key] || 0)
   }));
 
-  // SVG dimensions and settings
+  
   const width = 900;
   const height = 600;
   const centerX = width / 2;
   const centerY = height / 2;
   const maxRadius = 180;
-  const levels = 5; // Number of concentric circles
+  const levels = 5; 
   const angleStep = (Math.PI * 2) / traits.length;
 
-  // Calculate point positions on the radar
+  
   const getPoint = (index, value) => {
-    const angle = angleStep * index - Math.PI / 2; // Start from top
+    const angle = angleStep * index - Math.PI / 2; 
     const radius = (value / 100) * maxRadius;
     return {
       x: centerX + Math.cos(angle) * radius,
@@ -139,7 +143,7 @@ export function RadarChart({ organism }) {
     };
   };
 
-  // Calculate label positions (further outside the max radius)
+  
   const getLabelPoint = (index) => {
     const angle = angleStep * index - Math.PI / 2;
     const radius = maxRadius + 50;
@@ -150,7 +154,7 @@ export function RadarChart({ organism }) {
     };
   };
 
-  // Generate polygon path
+  
   const polygonPoints = traitData.map((trait, i) => {
     const point = getPoint(i, trait.value);
     return `${point.x},${point.y}`;
@@ -269,7 +273,7 @@ export function RadarChart({ organism }) {
             const labelPos = getLabelPoint(i);
             const isHovered = hoveredTrait === i;
 
-            // Calculate text anchor and positioning based on angle
+            
             let textAnchor = 'middle';
             let dx = 0;
             let dy = 0;
@@ -277,19 +281,19 @@ export function RadarChart({ organism }) {
             const normalizedAngle = ((labelPos.angle + Math.PI * 2) % (Math.PI * 2));
 
             if (normalizedAngle < Math.PI / 4 || normalizedAngle > 7 * Math.PI / 4) {
-              // Right side
+              
               textAnchor = 'start';
               dx = 5;
             } else if (normalizedAngle > 3 * Math.PI / 4 && normalizedAngle < 5 * Math.PI / 4) {
-              // Left side
+              
               textAnchor = 'end';
               dx = -5;
             } else if (normalizedAngle >= Math.PI / 4 && normalizedAngle <= 3 * Math.PI / 4) {
-              // Bottom
+              
               textAnchor = 'middle';
               dy = 15;
             } else {
-              // Top
+              
               textAnchor = 'middle';
               dy = -8;
             }

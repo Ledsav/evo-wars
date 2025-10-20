@@ -6,15 +6,15 @@ import { RadarChart } from './RadarChart';
  * GenomePopup - Detailed genome viewer modal
  */
 export function GenomePopup({ organism, onClose }) {
-  // Don't render if no organism selected
+  
   if (!organism) return null;
 
 
-  // Safely check for genome and genes
+  
   if (!organism.genome || typeof organism.genome.getGeneNames !== 'function') {
     console.error('❌ Organism missing genome or getGeneNames method', organism);
 
-    // Show error in popup instead of returning null
+    
     return createPortal(
       <div className="genome-popup-overlay" onClick={onClose}>
         <div className="genome-popup" onClick={(e) => e.stopPropagation()}>
@@ -41,7 +41,7 @@ export function GenomePopup({ organism, onClose }) {
   if (!genes || genes.length === 0) {
     console.error('❌ No genes found in genome');
 
-    // Show error in popup instead of returning null
+    
     return createPortal(
       <div className="genome-popup-overlay" onClick={onClose}>
         <div className="genome-popup" onClick={(e) => e.stopPropagation()}>

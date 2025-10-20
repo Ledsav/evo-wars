@@ -11,28 +11,35 @@ import './FamilyTree.css';
 function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMaximized = false, innerRef }) {
   const canvasRef = useRef(null);
   const [hoveredNode, setHoveredNode] = useState(null);
-  const nodePositions = useRef(new Map()); // Cache node positions for hover detection
+  const nodePositions = useRef(new Map()); 
 
-  // Render the tree
+  
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
 
-    // Set canvas size
-    canvas.width = width;
-    canvas.height = height;
+    
+    const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) ? window.devicePixelRatio : 1;
+    const scaleFactor = Math.max(2, dpr); 
+    canvas.width = width * scaleFactor;
+    canvas.height = height * scaleFactor;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
 
-    // Clear canvas
+    
+    ctx.scale(scaleFactor, scaleFactor);
+
+    
     ctx.clearRect(0, 0, width, height);
     ctx.fillStyle = '#1a1a1a';
     ctx.fillRect(0, 0, width, height);
 
-    // Get tree layout
+    
     const layout = genealogyTracker.getTreeLayout();
     if (layout.length === 0) {
-      // Show message if no species yet
+      
       ctx.fillStyle = '#888888';
       ctx.font = '14px system-ui';
       ctx.textAlign = 'center';
@@ -40,27 +47,16 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
       return;
     }
 
-    // Calculate layout parameters - smaller in normal view, larger in maximized
+    
     const nodeRadius = isMaximized ? 30 : 20;
     const verticalSpacing = isMaximized ? 120 : 80;
-    const extinctNodeRadius = nodeRadius * 0.6; // Extinct nodes are 60% size
+    const extinctNodeRadius = nodeRadius * 0.6; 
     const levelHeight = verticalSpacing;
     const topPadding = isMaximized ? 60 : 40;
-    const bottomPadding = isMaximized ? 60 : 40;
 
-    // Calculate required canvas height based on tree depth
-    const requiredHeight = topPadding + (layout.length * levelHeight) + bottomPadding;
-
-    // If canvas is too small, we need to expand it (this will trigger scrolling)
-    if (height < requiredHeight) {
-      // We'll handle this by making sure the canvas container allows scrolling
-      // The canvas will be drawn at the provided height, but content may extend beyond
-    }
-
-    // Clear node positions for hover detection
     nodePositions.current.clear();
 
-    // Calculate positions for each level
+    
     const levelPositions = layout.map((level, depth) => {
       const y = topPadding + depth * levelHeight;
       const maxSpacing = isMaximized ? 150 : 100;
@@ -75,7 +71,7 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
       }));
     });
 
-    // Draw connections first (behind nodes)
+    
     ctx.strokeStyle = '#444444';
     ctx.lineWidth = 2;
 
@@ -86,7 +82,7 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
       for (const parent of currentLevel) {
         for (const child of nextLevel) {
           if (child.node.parentId === parent.node.id) {
-            // Draw line from parent to child
+            
             ctx.beginPath();
             ctx.moveTo(parent.x, parent.y + nodeRadius);
             ctx.lineTo(child.x, child.y - nodeRadius);
@@ -96,32 +92,32 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
       }
     }
 
-    // Draw nodes
-    let hoveredNodeData = null; // Store hovered node data for later rendering
+    
+    let hoveredNodeData = null; 
 
     const truncate = (text, max) => (text && text.length > max ? text.slice(0, max - 1) + '…' : text);
 
     for (const level of levelPositions) {
       for (const { node, x, y } of level) {
-        // Use smaller radius for extinct nodes
+        
         const currentNodeRadius = node.extinct ? extinctNodeRadius : nodeRadius;
 
-        // Store position for hover detection
+        
         nodePositions.current.set(node.id, { x, y, radius: currentNodeRadius });
 
-        // Determine if this node is hovered
+        
         const isHovered = hoveredNode === node.id;
 
-        // Store hovered node for later rendering (after all nodes)
+        
         if (isHovered) {
           hoveredNodeData = { node, x, y };
         }
 
-        // Node background circle
+        
         ctx.beginPath();
         ctx.arc(x, y, currentNodeRadius, 0, Math.PI * 2);
 
-        // Color based on status - more faded for extinct
+        
         if (node.extinct) {
           ctx.fillStyle = '#2a2a2a';
           ctx.strokeStyle = '#555555';
@@ -134,37 +130,29 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
         ctx.lineWidth = isHovered ? (node.extinct ? 2 : 4) : (node.extinct ? 1 : 2);
         ctx.stroke();
 
-        // Render organism thumbnail inside circle (skip for extinct to save space)
+        
         if (node.representative && !node.extinct) {
           ctx.save();
           ctx.beginPath();
           ctx.arc(x, y, currentNodeRadius - 4, 0, Math.PI * 2);
           ctx.clip();
 
-          // Create a mock organism for rendering
-          const mock = {
-            ...node.representative,
-            x,
-            y,
-            rotation: 0,
-            isPlayer: false,
-          };
+          
+          const cached = OrganismRenderer.getHighResCachedRender(node.representative);
+          const cacheScale = cached.scale || 1;
 
-          // Scale organism to fit in circle
-          const scale = (currentNodeRadius - 8) / (node.phenotype?.size || 10);
+          
+          const scale = (currentNodeRadius - 8) / ((node.representative.phenotype?.size || 10) * cacheScale);
           ctx.translate(x, y);
           ctx.scale(scale, scale);
 
-          const mockScaled = {
-            ...mock,
-            x: 0,
-            y: 0,
-          };
+          
+          const halfSize = cached.size / 2;
+          ctx.drawImage(cached.canvas, -halfSize, -halfSize);
 
-          OrganismRenderer.render(ctx, mockScaled, false, {}, { showUI: false });
           ctx.restore();
         } else if (node.extinct && !node.isExtinctGroup) {
-          // Draw simple X for single extinct species
+          
           ctx.save();
           ctx.strokeStyle = '#666666';
           ctx.lineWidth = 2;
@@ -177,7 +165,7 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
           ctx.stroke();
           ctx.restore();
         } else if (node.isExtinctGroup) {
-          // Draw skull icon for extinct group
+          
           ctx.save();
           ctx.fillStyle = '#666666';
           ctx.font = `${currentNodeRadius * 1.2}px system-ui`;
@@ -187,7 +175,7 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
           ctx.restore();
         }
 
-        // Population badge (only for alive species)
+        
         if (!node.extinct) {
           const badgeText = node.currentPopulation.toString();
           const badgeFontSize = isMaximized ? 11 : 9;
@@ -195,7 +183,7 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
 
-          // Badge background
+          
           const badgeRadius = isMaximized ? 12 : 10;
           const badgeX = x + currentNodeRadius - (isMaximized ? 8 : 6);
           const badgeY = y - currentNodeRadius + (isMaximized ? 8 : 6);
@@ -205,12 +193,12 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
           ctx.fillStyle = '#4CAF50';
           ctx.fill();
 
-          // Badge text
+          
           ctx.fillStyle = '#ffffff';
           ctx.fillText(badgeText, badgeX, badgeY);
         }
 
-        // Species label below node
+        
         let labelText;
         if (node.isExtinctGroup) {
           labelText = `${node.extinctCount} extinct`;
@@ -219,7 +207,7 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
             ? node.representative.getSpeciesInfo()
             : null;
           const base = info ? `${info.emoji} ${info.name}` : `Species ${node.id.toString().slice(0, node.extinct ? 4 : 6)}`;
-          // Truncate to fit beneath node
+          
           labelText = truncate(base, isMaximized ? 22 : 16);
         }
 
@@ -230,7 +218,7 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
         ctx.fillStyle = node.extinct ? '#555555' : '#cccccc';
         ctx.fillText(labelText, x, y + currentNodeRadius + 3);
 
-        // Extinct indicator - only for single extinct species (not groups)
+        
         if (node.extinct && !node.isExtinctGroup) {
           const extinctFontSize = isMaximized ? 9 : 7;
           ctx.font = `${extinctFontSize}px system-ui`;
@@ -240,20 +228,20 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
       }
     }
 
-    // Draw tooltip last (above all nodes)
+    
     if (hoveredNodeData) {
       drawHoverInfo(ctx, hoveredNodeData.node, hoveredNodeData.x, hoveredNodeData.y, nodeRadius, width, height);
     }
   }, [genealogyTracker, width, height, hoveredNode, isMaximized]);
 
-  // Notify parent of hover changes
+  
   useEffect(() => {
     if (onHoverChange) {
       onHoverChange(hoveredNode);
     }
   }, [hoveredNode, onHoverChange]);
 
-  // Handle mouse move for hover detection
+  
   const handleMouseMove = (e) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -262,7 +250,7 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    // Check if mouse is over any node
+    
     let foundNode = null;
     for (const [nodeId, pos] of nodePositions.current) {
       const dx = mouseX - pos.x;
@@ -306,14 +294,14 @@ function FamilyTreePopup({ genealogyTracker, onClose }) {
 
   useEffect(() => {
     const handleResize = () => {
-      // Calculate required height based on tree depth for maximized view
+      
       const layout = genealogyTracker.getTreeLayout();
-      const verticalSpacing = 120; // Match maximized view spacing
+      const verticalSpacing = 120; 
       const topPadding = 60;
       const bottomPadding = 60;
       const minHeight = 500;
 
-      // Allow canvas to grow taller than container to enable scrolling
+      
       const requiredHeight = Math.max(
         minHeight,
         topPadding + (layout.length * verticalSpacing) + bottomPadding
@@ -328,7 +316,7 @@ function FamilyTreePopup({ genealogyTracker, onClose }) {
     handleResize();
     window.addEventListener('resize', handleResize);
 
-    // Update when tree changes
+    
     const interval = setInterval(handleResize, 1000);
 
     return () => {
@@ -393,7 +381,7 @@ function FamilyTreePopup({ genealogyTracker, onClose }) {
             onClick={() => {
               const el = canvasElRef.current;
               if (el) {
-                // lazy import to avoid circular deps
+                
                 import('../../utils/screenshot').then(({ downloadCanvas, timestampFilename }) => {
                   const fname = timestampFilename('genealogy');
                   downloadCanvas(el, fname, (filename) => {
@@ -429,15 +417,15 @@ export function FamilyTree({ genealogyTracker }) {
   const canvasElRef = useRef(null);
   const { notify } = useNotifications();
 
-  // Update canvas size when container resizes OR tree depth changes
+  
   useEffect(() => {
     const updateSize = () => {
       if (containerRef.current) {
         const { clientWidth } = containerRef.current;
 
-        // Calculate required height based on tree depth
+        
         const layout = genealogyTracker.getTreeLayout();
-        const verticalSpacing = 80; // Match normal view spacing
+        const verticalSpacing = 80; 
         const topPadding = 40;
         const bottomPadding = 40;
         const minHeight = 600;
@@ -456,8 +444,8 @@ export function FamilyTree({ genealogyTracker }) {
     updateSize();
     window.addEventListener('resize', updateSize);
 
-    // Also update when tree changes
-    const interval = setInterval(updateSize, 1000); // Check every second
+    
+    const interval = setInterval(updateSize, 1000); 
 
     return () => {
       window.removeEventListener('resize', updateSize);
@@ -564,11 +552,11 @@ function drawHoverInfo(ctx, node, x, y, nodeRadius, canvasWidth, canvasHeight) {
   const lineHeight = 16;
   const tooltipWidth = 200;
 
-  // Build info text
+  
   let info;
 
   if (node.isExtinctGroup) {
-    // Tooltip for grouped extinct species
+    
     info = [
       `Extinct Species Group`,
       `Count: ${node.extinctCount} species`,
@@ -578,7 +566,7 @@ function drawHoverInfo(ctx, node, x, y, nodeRadius, canvasWidth, canvasHeight) {
     const timeAlive = ((node.extinctTime - node.firstSeen) / 1000).toFixed(0);
     info.push(`Lasted: ${timeAlive}s`);
   } else {
-    // Tooltip for single species
+    
     const infoObj = node.representative && typeof node.representative.getSpeciesInfo === 'function'
       ? node.representative.getSpeciesInfo()
       : null;
@@ -601,7 +589,7 @@ function drawHoverInfo(ctx, node, x, y, nodeRadius, canvasWidth, canvasHeight) {
 
   const tooltipHeight = padding * 2 + info.length * lineHeight;
 
-  // Position tooltip (avoid edges)
+  
   let tooltipX = x + nodeRadius + 15;
   let tooltipY = y - tooltipHeight / 2;
 
@@ -611,16 +599,16 @@ function drawHoverInfo(ctx, node, x, y, nodeRadius, canvasWidth, canvasHeight) {
 
   tooltipY = Math.max(10, Math.min(tooltipY, canvasHeight - tooltipHeight - 10));
 
-  // Draw tooltip background
+  
   ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
   ctx.fillRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight);
 
-  // Draw tooltip border
+  
   ctx.strokeStyle = node.extinct ? '#666666' : `hsl(${node.color.h}, ${node.color.s}%, ${node.color.l}%)`;
   ctx.lineWidth = 2;
   ctx.strokeRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight);
 
-  // Draw text
+  
   ctx.fillStyle = '#ffffff';
   ctx.font = '12px system-ui';
   ctx.textAlign = 'left';

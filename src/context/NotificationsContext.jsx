@@ -22,7 +22,7 @@ export function NotificationsProvider({ children }) {
     try {
       localStorage.setItem('evo-notifications', JSON.stringify(settings));
     } catch (e) {
-      // ignore write errors (private mode, etc.)
+      
       console.warn('Failed to persist notification settings', e);
     }
   }, [settings]);
@@ -34,7 +34,7 @@ export function NotificationsProvider({ children }) {
   }, []);
 
   const notify = useCallback((type, message, options = {}) => {
-    if (!settings.enabled && type !== 'screenshot') return; // Always show screenshots
+    if (!settings.enabled && type !== 'screenshot') return; 
     if (type === 'species-born' && !settings.speciesBorn) return;
     if (type === 'species-extinct' && !settings.speciesExtinct) return;
 

@@ -6,35 +6,247 @@
  * - Main render method orchestrates all rendering
  * - Trait rendering methods handle visual representation of genetic traits
  * - Overlay/utility methods handle non-genetic visual elements (UI, highlights, etc.)
+ * - Caching system for static organism appearance
  */
 export class OrganismRenderer {
+  // Cache for pre-rendered organism appearances
+  static renderCache = new Map();
+  static maxCacheSize = 500; // Limit cache size to prevent memory issues
+
   /**
-   * Render a single organism
+   * Pre-compute and cache color strings for organism
+   */
+  static getColorStrings(organism) {
+    const p = organism.phenotype;
+    if (!organism._cachedColors || organism._colorCacheKey !== this.getCacheKey(organism)) {
+      organism._cachedColors = {
+        fill: `hsl(${p.color.h}, ${p.color.s}%, ${p.color.l}%)`,
+        stroke: `hsl(${p.color.h}, ${p.color.s}%, ${p.color.l - 20}%)`,
+        secondary: p.colorPattern
+          ? `hsl(${(p.color.h + p.colorPattern.secondaryHueShift) % 360}, ${p.color.s}%, ${p.color.l + 10}%)`
+          : `hsl(${p.color.h}, ${p.color.s}%, ${p.color.l}%)`,
+        highlight: `hsl(${p.color.h}, 100%, 70%)`,
+      };
+      organism._colorCacheKey = this.getCacheKey(organism);
+    }
+    return organism._cachedColors;
+  }
+
+  /**
+   * Generate cache key for organism based on phenotype
+   */
+  static getCacheKey(organism) {
+    const p = organism.phenotype;
+    // Include all visual traits that affect appearance
+    return `${p.size}_${p.color.h}_${p.color.s}_${p.color.l}_${p.segments}_${p.toxicity.toFixed(2)}_${p.armor.toFixed(2)}_${p.aggression.toFixed(2)}_${p.visionRange.toFixed(0)}_${p.maxSpeed.toFixed(2)}_${p.colorPattern?.type || 'none'}_${p.colorPattern?.intensity.toFixed(2) || '0'}`;
+  }
+
+  /**
+   * Get or create cached render for organism (normal resolution for simulation)
+   */
+  static getCachedRender(organism) {
+    const cacheKey = this.getCacheKey(organism);
+
+    if (this.renderCache.has(cacheKey)) {
+      return this.renderCache.get(cacheKey);
+    }
+
+    // Create offscreen canvas for this organism type
+    const size = organism.phenotype.size;
+    const padding = size * 2; // Extra space for spikes, fins, glow effects
+    const cacheSize = (size + padding) * 2;
+
+    const offscreen = document.createElement('canvas');
+    offscreen.width = cacheSize;
+    offscreen.height = cacheSize;
+    const offCtx = offscreen.getContext('2d');
+
+    // Translate to center
+    offCtx.translate(cacheSize / 2, cacheSize / 2);
+
+    // Render organism to offscreen canvas
+    const { color, segments, toxicity, armor, colorPattern, maxSpeed, aggression, visionRange } = organism.phenotype;
+
+    const fillColor = `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
+    const strokeColor = `hsl(${color.h}, ${color.s}%, ${color.l - 20}%)`;
+    const secondaryColor = colorPattern ?
+      `hsl(${(color.h + colorPattern.secondaryHueShift) % 360}, ${color.s}%, ${color.l + 10}%)` :
+      fillColor;
+
+    // Render all static visual features
+    this.renderBodySegments(offCtx, organism, fillColor, strokeColor, secondaryColor);
+    this.renderArmorPlating(offCtx, size, segments, armor, color);
+    this.renderAggressionSpikes(offCtx, size, segments, aggression, color);
+    this.renderVisionSensors(offCtx, size, segments, visionRange, color);
+    this.renderSpeedFins(offCtx, size, maxSpeed, color);
+    this.renderToxicityIndicator(offCtx, size, toxicity);
+
+    // Store in cache
+    if (this.renderCache.size >= this.maxCacheSize) {
+      // Remove oldest entry (simple FIFO eviction)
+      const firstKey = this.renderCache.keys().next().value;
+      this.renderCache.delete(firstKey);
+    }
+
+    this.renderCache.set(cacheKey, { canvas: offscreen, size: cacheSize });
+    return { canvas: offscreen, size: cacheSize };
+  }
+
+  // Separate high-res cache for UI thumbnails only
+  static thumbnailCache = new Map();
+  static maxThumbnailCacheSize = 500;
+
+  /**
+   * Get or create high-resolution cached render for UI thumbnails ONLY
+   * This is separate from the simulation cache and uses 4x scale for crisp thumbnails
+   */
+  static getHighResCachedRender(organism) {
+    const cacheKey = this.getCacheKey(organism);
+
+    if (this.thumbnailCache.has(cacheKey)) {
+      return this.thumbnailCache.get(cacheKey);
+    }
+
+    // Create high-resolution offscreen canvas for UI thumbnails
+    const hiResScale = 4;
+    const size = organism.phenotype.size;
+    const padding = size * 2;
+    const cacheSize = (size + padding) * 2 * hiResScale;
+
+    const offscreen = document.createElement('canvas');
+    offscreen.width = cacheSize;
+    offscreen.height = cacheSize;
+    const offCtx = offscreen.getContext('2d');
+
+    // Translate to center and scale up for high-res rendering
+    offCtx.translate(cacheSize / 2, cacheSize / 2);
+    offCtx.scale(hiResScale, hiResScale);
+
+    // Render organism to offscreen canvas using ORIGINAL phenotype sizes
+    const { color, segments, toxicity, armor, colorPattern, maxSpeed, aggression, visionRange } = organism.phenotype;
+
+    const fillColor = `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
+    const strokeColor = `hsl(${color.h}, ${color.s}%, ${color.l - 20}%)`;
+    const secondaryColor = colorPattern ?
+      `hsl(${(color.h + colorPattern.secondaryHueShift) % 360}, ${color.s}%, ${color.l + 10}%)` :
+      fillColor;
+
+    // Render all static visual features using original size (context is already scaled)
+    this.renderBodySegments(offCtx, organism, fillColor, strokeColor, secondaryColor);
+    this.renderArmorPlating(offCtx, size, segments, armor, color);
+    this.renderAggressionSpikes(offCtx, size, segments, aggression, color);
+    this.renderVisionSensors(offCtx, size, segments, visionRange, color);
+    this.renderSpeedFins(offCtx, size, maxSpeed, color);
+    this.renderToxicityIndicator(offCtx, size, toxicity);
+
+    // Store in thumbnail cache
+    if (this.thumbnailCache.size >= this.maxThumbnailCacheSize) {
+      const firstKey = this.thumbnailCache.keys().next().value;
+      this.thumbnailCache.delete(firstKey);
+    }
+
+    this.thumbnailCache.set(cacheKey, { canvas: offscreen, size: cacheSize, scale: hiResScale });
+    return { canvas: offscreen, size: cacheSize, scale: hiResScale };
+  }
+
+  /**
+   * Clear render cache (call when needed to free memory)
+   */
+  static clearCache() {
+    this.renderCache.clear();
+    this.thumbnailCache.clear();
+  }
+
+  /**
+   * Determine level of detail for rendering
+   * @param {number} apparentSize - Size in screen pixels after zoom
+   * @returns {string} 'simple' | 'medium' | 'full'
+   */
+  static getLOD(apparentSize) {
+    if (apparentSize < 8) return 'simple';
+    if (apparentSize < 20) return 'medium';
+    return 'full';
+  }
+
+  /**
+   * Render organism with simple LOD (just a colored circle)
+   */
+  static renderSimple(ctx, organism) {
+    const { size } = organism.phenotype;
+    const colors = this.getColorStrings(organism);
+
+    ctx.beginPath();
+    ctx.arc(0, 0, size, 0, Math.PI * 2);
+    ctx.fillStyle = colors.fill;
+    ctx.fill();
+  }
+
+  /**
+   * Render organism with medium LOD (basic shape, no details)
+   */
+  static renderMedium(ctx, organism) {
+    const { size, segments } = organism.phenotype;
+    const colors = this.getColorStrings(organism);
+
+    // Simple segmented body without details
+    const segmentCount = segments || 1;
+    const segmentSize = size / segmentCount;
+
+    for (let i = 0; i < segmentCount; i++) {
+      const x = -size / 2 + segmentSize / 2 + i * segmentSize;
+      const radius = segmentSize * 0.8;
+
+      ctx.beginPath();
+      ctx.arc(x, 0, radius, 0, Math.PI * 2);
+      ctx.fillStyle = colors.fill;
+      ctx.fill();
+      ctx.strokeStyle = colors.stroke;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+
+  /**
+   * Render a single organism (optimized with caching and LOD)
    */
   static render(ctx, organism, isHighlighted = false, overlays = {}, options = {}) {
     if (!organism.isAlive) {
       return;
     }
 
+    // Determine LOD level based on scale (if provided in options)
+    const scale = options.scale || 1;
+    const apparentSize = organism.phenotype.size * scale;
+    const lod = this.getLOD(apparentSize);
+
     ctx.save();
     ctx.translate(organism.x, organism.y);
     ctx.rotate(organism.rotation);
 
-  const { size, color, segments, toxicity, armor, colorPattern, metabolicRate, maxSpeed, aggression, visionRange } = organism.phenotype;
+  const { size, metabolicRate } = organism.phenotype;
+    const colors = this.getColorStrings(organism);
 
-    // Create color string
-    const fillColor = `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
-    const strokeColor = `hsl(${color.h}, ${color.s}%, ${color.l - 20}%)`;
+    // Use simple rendering for distant/small organisms
+    if (lod === 'simple') {
+      this.renderSimple(ctx, organism);
+      ctx.restore();
+      return;
+    }
 
-    // Secondary color for patterns
-    const secondaryColor = colorPattern ?
-      `hsl(${(color.h + colorPattern.secondaryHueShift) % 360}, ${color.s}%, ${color.l + 10}%)` :
-      fillColor;
+    if (lod === 'medium') {
+      this.renderMedium(ctx, organism);
+      ctx.restore();
+      // Still show energy bar for medium LOD
+      if (options.showUI !== false) {
+        this.renderEnergyBar(ctx, organism);
+      }
+      return;
+    }
 
-    // Highlight glow effect
+    // Highlight glow effect (drawn before cached organism)
     if (isHighlighted) {
       ctx.save();
-      ctx.shadowColor = `hsl(${color.h}, 100%, 70%)`;
+      ctx.shadowColor = colors.highlight;
       ctx.shadowBlur = 20;
       ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = 0;
@@ -44,38 +256,25 @@ export class OrganismRenderer {
       const pulseSize = size + 8 + Math.sin(time) * 3;
       ctx.beginPath();
       ctx.arc(0, 0, pulseSize, 0, Math.PI * 2);
-      ctx.strokeStyle = `hsl(${color.h}, 100%, 70%)`;
+      ctx.strokeStyle = colors.highlight;
       ctx.lineWidth = 3;
       ctx.stroke();
       ctx.restore();
     }
 
-    // ===========================
-    // TRAIT-BASED RENDERING
-    // ===========================
-
-    // Metabolism glow (behind body)
+    // Metabolism glow (behind body) - dynamic overlay
     if (overlays.showMetabolism) {
       this.renderMetabolismGlow(ctx, size, metabolicRate);
     }
 
-    // Main body segments
-    this.renderBodySegments(ctx, organism, fillColor, strokeColor, secondaryColor);
+    // Draw cached organism appearance
+    const cached = this.getCachedRender(organism);
+    const halfSize = cached.size / 2;
+    ctx.drawImage(cached.canvas, -halfSize, -halfSize);
 
-    // Trait-based visual features (order matters for layering)
-    this.renderArmorPlating(ctx, size, segments, armor, color);
-    this.renderAggressionSpikes(ctx, size, segments, aggression, color);
-    this.renderVisionSensors(ctx, size, segments, visionRange, color);
-    this.renderSpeedFins(ctx, size, maxSpeed, color);
-    this.renderToxicityIndicator(ctx, size, toxicity);
-
-    // ===========================
-    // OVERLAY/UTILITY RENDERING
-    // ===========================
-
-    // Speed trail overlay (optional visualization)
+    // Speed trail overlay (optional visualization) - dynamic overlay
     if (overlays.showSpeed) {
-      this.renderSpeedTrail(ctx, organism, size, maxSpeed, color);
+      this.renderSpeedTrail(ctx, organism, size, organism.phenotype.maxSpeed, colors);
     }
 
     // Player selection indicator
@@ -442,8 +641,9 @@ export class OrganismRenderer {
   /**
    * Render speed trail overlay (optional visualization)
    * Creates a dynamic gradient trail with motion blur effect
+   * @param {*} colors - Cached color object from getColorStrings
    */
-  static renderSpeedTrail(ctx, organism, size, maxSpeed, color) {
+  static renderSpeedTrail(ctx, organism, size, maxSpeed) {
     const speed = Math.hypot(organism.vx, organism.vy);
     const speedRatio = maxSpeed ? Math.min(1, speed / maxSpeed) : Math.min(1, speed / 1.0);
 
@@ -455,6 +655,9 @@ export class OrganismRenderer {
     const trailLength = size * (1.5 + speedRatio * 3);
     const trailWidth = size * (0.4 + speedRatio * 0.3);
     const baseAlpha = 0.2 + speedRatio * 0.3;
+
+    // Get color values for gradient
+    const color = organism.phenotype.color;
 
     // Create gradient trail from back to front
     const gradient = ctx.createLinearGradient(-trailLength, 0, 0, 0);
@@ -652,6 +855,7 @@ export class OrganismRenderer {
 
   /**
    * Render a small thumbnail of an organism into a canvas (centered, scaled)
+   * Always uses full detail rendering, bypassing LOD system for crisp thumbnails
    */
   static renderThumbnail(canvas, organism) {
     const ctx = canvas.getContext('2d');
@@ -688,26 +892,23 @@ export class OrganismRenderer {
     const W = cssW;
     const H = cssH;
 
-    // Compute scale so organism fits nicely
+    // Use high-res cache for UI thumbnails
+    const cached = this.getHighResCachedRender(organism);
+    const cacheScale = cached.scale || 1;
+
+    // Compute scale so organism fits nicely, accounting for cache's internal scale
     const targetRadius = Math.min(W, H) * 0.35;
     const size = organism.phenotype?.size || 10;
-    const scale = Math.max(0.1, targetRadius / Math.max(1, size));
-
-    // Create a masked organism object at center with zero rotation
-    const mock = Object.create(organism);
-    mock.x = W / 2;
-    mock.y = H / 2;
-    mock.rotation = 0;
-    mock.isPlayer = false;
+    const scale = Math.max(0.1, targetRadius / Math.max(1, size * cacheScale));
 
     // Apply scale around center
     ctx.translate(W / 2, H / 2);
     ctx.scale(scale, scale);
-    // Render relative to (0,0) after translate; adjust mock coords
-    mock.x = 0;
-    mock.y = 0;
-    // Draw without UI overlays/energy bars
-    this.render(ctx, mock, false, {}, { showUI: false });
+
+    // Draw cached organism appearance (full detail, no LOD)
+    const halfSize = cached.size / 2;
+    ctx.drawImage(cached.canvas, -halfSize, -halfSize);
+
     ctx.restore();
 
     // Update cache key

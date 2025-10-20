@@ -16,26 +16,26 @@ function LineChart({ data, lines, width = 400, height = 200, title }) {
     const chartWidth = width - padding.left - padding.right;
     const chartHeight = height - padding.top - padding.bottom;
 
-    // Clear canvas
+    
     ctx.clearRect(0, 0, width, height);
 
-    // Set styles
+    
     ctx.fillStyle = '#1a1a1a';
     ctx.fillRect(0, 0, width, height);
 
-    // Draw title
+    
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 14px system-ui';
     ctx.textAlign = 'center';
     ctx.fillText(title, width / 2, 20);
 
-    // Calculate scales
+    
     const timeValues = data.time;
     const minTime = timeValues[0] || 0;
     const maxTime = timeValues[timeValues.length - 1] || 1;
     const timeRange = maxTime - minTime || 1;
 
-    // Find min/max for all enabled lines
+    
     let minY = Infinity;
     let maxY = -Infinity;
 
@@ -48,7 +48,7 @@ function LineChart({ data, lines, width = 400, height = 200, title }) {
       }
     }
 
-    // Handle edge cases
+    
     if (minY === Infinity) minY = 0;
     if (maxY === -Infinity) maxY = 1;
     if (minY === maxY) {
@@ -58,15 +58,15 @@ function LineChart({ data, lines, width = 400, height = 200, title }) {
 
     const yRange = maxY - minY;
 
-    // Helper functions
+    
     const scaleX = (time) => padding.left + ((time - minTime) / timeRange) * chartWidth;
     const scaleY = (value) => padding.top + chartHeight - ((value - minY) / yRange) * chartHeight;
 
-    // Draw grid lines
+    
     ctx.strokeStyle = '#333333';
     ctx.lineWidth = 1;
 
-    // Horizontal grid lines
+    
     const ySteps = 5;
     for (let i = 0; i <= ySteps; i++) {
       const y = padding.top + (chartHeight / ySteps) * i;
@@ -75,7 +75,7 @@ function LineChart({ data, lines, width = 400, height = 200, title }) {
       ctx.lineTo(padding.left + chartWidth, y);
       ctx.stroke();
 
-      // Y-axis labels
+      
       const value = maxY - (yRange / ySteps) * i;
       ctx.fillStyle = '#888888';
       ctx.font = '11px system-ui';
@@ -83,7 +83,7 @@ function LineChart({ data, lines, width = 400, height = 200, title }) {
       ctx.fillText(value.toFixed(0), padding.left - 10, y + 4);
     }
 
-    // Vertical grid lines
+    
     const xSteps = 5;
     for (let i = 0; i <= xSteps; i++) {
       const x = padding.left + (chartWidth / xSteps) * i;
@@ -92,7 +92,7 @@ function LineChart({ data, lines, width = 400, height = 200, title }) {
       ctx.lineTo(x, padding.top + chartHeight);
       ctx.stroke();
 
-      // X-axis labels
+      
       const time = minTime + (timeRange / xSteps) * i;
       ctx.fillStyle = '#888888';
       ctx.font = '11px system-ui';
@@ -100,7 +100,7 @@ function LineChart({ data, lines, width = 400, height = 200, title }) {
       ctx.fillText(time.toFixed(0) + 's', x, height - 10);
     }
 
-    // Draw axes
+    
     ctx.strokeStyle = '#666666';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -109,7 +109,7 @@ function LineChart({ data, lines, width = 400, height = 200, title }) {
     ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
     ctx.stroke();
 
-    // Draw data lines
+    
     for (const line of lines) {
       if (!line.enabled) continue;
 
@@ -134,7 +134,7 @@ function LineChart({ data, lines, width = 400, height = 200, title }) {
       ctx.stroke();
     }
 
-    // Draw legend
+    
     ctx.font = '12px system-ui';
     ctx.textAlign = 'left';
     let legendY = padding.top + 5;
@@ -142,11 +142,11 @@ function LineChart({ data, lines, width = 400, height = 200, title }) {
     for (const line of lines) {
       if (!line.enabled) continue;
 
-      // Draw color box
+      
       ctx.fillStyle = line.color;
       ctx.fillRect(padding.left + chartWidth + 5, legendY - 8, 12, 12);
 
-      // Draw label
+      
       ctx.fillStyle = '#ffffff';
       ctx.fillText(line.label, padding.left + chartWidth + 22, legendY + 2);
       legendY += 18;
@@ -161,7 +161,7 @@ function LineChart({ data, lines, width = 400, height = 200, title }) {
  * Statistics - Display simulation statistics with time-series charts
  */
 export function Statistics({ statsTracker, onUpdateSampleFrequency }) {
-  const [sampleFrequency, setSampleFrequency] = useState(1); // 1% default
+  const [sampleFrequency, setSampleFrequency] = useState(1); 
 
 
   const data = statsTracker.getData();
@@ -171,11 +171,11 @@ export function Statistics({ statsTracker, onUpdateSampleFrequency }) {
   const handleFrequencyChange = (e) => {
     const value = parseInt(e.target.value);
     setSampleFrequency(value);
-    onUpdateSampleFrequency(value / 100); // Convert percentage to decimal
+    onUpdateSampleFrequency(value / 100); 
   };
 
 
-  // Define chart lines - each metric gets its own chart for better visibility
+  
   const organismsLines = [
     { key: 'aliveOrganisms', label: 'Organisms', color: '#4CAF50', enabled: true },
   ];

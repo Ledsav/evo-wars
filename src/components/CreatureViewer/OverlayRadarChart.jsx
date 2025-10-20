@@ -14,7 +14,7 @@ export function OverlayRadarChart({ organisms }) {
 
   if (!organisms || organisms.length === 0) return null;
 
-  // Define traits to display with normalization functions
+  
   const traits = [
     {
       name: 'Size',
@@ -58,13 +58,13 @@ export function OverlayRadarChart({ organisms }) {
     }
   ];
 
-  // Colors for each organism
+  
   const colors = [
     '#4ade80', '#60a5fa', '#a78bfa', '#f472b6',
     '#fb923c', '#34d399', '#ef4444', '#fbbf24'
   ];
 
-  // Calculate trait values for all organisms
+  
   const organismsData = organisms.map((organism, index) => ({
     organism,
     color: colors[index % colors.length],
@@ -75,7 +75,7 @@ export function OverlayRadarChart({ organisms }) {
     }))
   }));
 
-  // SVG dimensions and settings
+  
   const width = 600;
   const height = 600;
   const viewBoxFactor = 1.2;
@@ -85,7 +85,7 @@ export function OverlayRadarChart({ organisms }) {
   const levels = 5;
   const angleStep = (Math.PI * 2) / traits.length;
 
-  // Calculate point positions on the radar
+  
   const getPoint = (index, value) => {
     const angle = angleStep * index - Math.PI / 2;
     const radius = (value / 100) * maxRadius;
@@ -95,7 +95,7 @@ export function OverlayRadarChart({ organisms }) {
     };
   };
 
-  // Calculate label positions
+  
   const getLabelPoint = (index) => {
     const angle = angleStep * index - Math.PI / 2;
     const radius = maxRadius + 60;
