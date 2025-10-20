@@ -8,7 +8,7 @@ export class OrganismAI {
     this.organism = organism;
     this.world = world;
     this.target = null;
-    this.state = 'idle'; // idle, seeking_food, fleeing, attacking
+    this.state = 'idle'; // idle, seeking_food, fleeing, attacking, cooperating
     this.stateTimer = 0;
     this.stuckTimer = 0;
     this.lowSpeedTimer = 0;
@@ -179,6 +179,15 @@ export class OrganismAI {
           this.avoidCrowding();
         }
         if (this.stateTimer > 3000) {
+          this.state = 'idle';
+          this.stateTimer = 0;
+        }
+        break;
+      case 'cooperating':
+        this.moveTowardTarget();
+        // Apply collision avoidance when cooperating
+        this.avoidCrowding();
+        if (this.stateTimer > 2000) {
           this.state = 'idle';
           this.stateTimer = 0;
         }
@@ -430,11 +439,25 @@ export class OrganismAI {
       const isSameSpecies = this.organism.isSameSpecies(other);
       const distance = this.organism.distanceTo(other);
 
-      // Same species - cooperation or neutral
+      // Same species - check for cooperation opportunity
       if (isSameSpecies) {
-        // Cooperative organisms might share space peacefully
+        // Highly cooperative organisms actively seek to help struggling kin
+        if (this.organism.phenotype.cooperativeness > 0.5) {
+          // Check if other needs help (low energy)
+          const otherNeedsHelp = other.energy < other.maxEnergy * 0.5;
+          const canHelp = this.organism.energy > this.organism.maxEnergy * 0.5;
+
+          if (otherNeedsHelp && canHelp && distance < this.organism.phenotype.size * 4) {
+            // Enter cooperation state to move toward struggling kin
+            this.target = other;
+            this.state = 'cooperating';
+            this.stateTimer = 0;
+            continue; // Skip other checks
+          }
+        }
+
+        // Very cooperative organisms don't attack same species
         if (this.organism.phenotype.cooperativeness > 0.7) {
-          // Don't attack, just coexist
           continue;
         }
       }

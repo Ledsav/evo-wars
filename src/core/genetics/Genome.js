@@ -160,6 +160,7 @@ export class Genome {
       reproduction: Gene.createRandom('reproduction', 15, 24),
       sensory: Gene.createRandom('sensory', 12, 21),
       aggression: Gene.createRandom('aggression', 12, 21),
+      cooperation: Gene.createRandom('cooperation', 12, 21),
       pigmentation: Gene.createRandom('pigmentation', 15, 24),
       structure: Gene.createRandom('structure', 24, 48)
     });

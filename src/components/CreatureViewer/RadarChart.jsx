@@ -65,7 +65,7 @@ export function RadarChart({ organism }) {
     return null;
   }
 
-  
+
   const traits = [
     {
       name: 'Size',
@@ -108,6 +108,12 @@ export function RadarChart({ organism }) {
       key: 'aggression',
       normalize: (val) => (val || 0.5) * 100,
       color: '#ef4444'
+    },
+    {
+      name: 'Cooperation',
+      key: 'cooperativeness',
+      normalize: (val) => (val || 0) * 100,
+      color: '#22c55e'
     },
     {
       name: 'Reproduction',

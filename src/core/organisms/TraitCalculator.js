@@ -169,15 +169,32 @@ export class TraitCalculator {
       description: 'Aggression level - positive charge drives aggressive behavior, hydrophobic adds territoriality'
     },
 
-    // COOPERATIVENESS: Tendency to cooperate with same species
-    // Based on: Inverse of aggression
-    // Range: 0-1 (inverse of aggression)
+    // COOPERATIVENESS: Tendency to cooperate with same species (share energy)
+    // Based on: Polar amino acids (social proteins) - independent of aggression
+    // Range: 0-1 (0 = selfish, 1 = highly cooperative)
     cooperativeness: {
-      baseValue: 0.5,
-      formula: (protein, phenotype) => 1 - phenotype.aggression,
+      baseValue: 0,
+      formula: (protein) => {
+        // Polar amino acids drive cooperative behavior (altruism)
+        // Negative charge also contributes (electron sharing analogy)
+        const coopFactor = (protein.properties.polarRatio * 0.7 +
+                           protein.properties.negativeRatio * 0.3);
+        return Math.max(0, Math.min(1, coopFactor));
+      },
       expectedRange: [0, 1],
-      weights: { inverseDependency: 'aggression' },
-      description: 'Cooperation level - inverse of aggression'
+      weights: { polarRatio: 0.7, negativeRatio: 0.3 },
+      description: 'Cooperation level - polar amino acids drive altruistic energy sharing with same species'
+    },
+
+    // COOPERATION AMOUNT: How much energy to share per cooperation event
+    // Based on: Protein length (more complex = more generous)
+    // Range: 5-20 energy units
+    cooperationAmount: {
+      baseValue: 5,
+      formula: (protein) => 5 + protein.properties.length * 0.5,
+      expectedRange: [5, 20],
+      weights: { length: 0.5 },
+      description: 'Energy amount shared during cooperation - longer genes = more generous sharing'
     }
   };
 
@@ -282,22 +299,25 @@ export class TraitCalculator {
   }
 
   /**
-   * Calculate behavioral traits from aggression protein
+   * Calculate behavioral traits from aggression and cooperation proteins
    */
-  static calculateBehavior(aggressionProtein) {
-    if (!aggressionProtein) {
-      return {
-        aggression: TraitCalculator.TRAIT_RULES.aggression.baseValue,
-        cooperativeness: TraitCalculator.TRAIT_RULES.cooperativeness.baseValue
-      };
-    }
+  static calculateBehavior(aggressionProtein, cooperationProtein) {
+    const aggression = aggressionProtein
+      ? TraitCalculator.TRAIT_RULES.aggression.formula(aggressionProtein)
+      : TraitCalculator.TRAIT_RULES.aggression.baseValue;
 
-    const aggression = TraitCalculator.TRAIT_RULES.aggression.formula(aggressionProtein);
-    const cooperativeness = TraitCalculator.TRAIT_RULES.cooperativeness.formula(null, { aggression });
+    const cooperativeness = cooperationProtein
+      ? TraitCalculator.TRAIT_RULES.cooperativeness.formula(cooperationProtein)
+      : TraitCalculator.TRAIT_RULES.cooperativeness.baseValue;
+
+    const cooperationAmount = cooperationProtein
+      ? TraitCalculator.TRAIT_RULES.cooperationAmount.formula(cooperationProtein)
+      : TraitCalculator.TRAIT_RULES.cooperationAmount.baseValue;
 
     return {
       aggression,
-      cooperativeness
+      cooperativeness,
+      cooperationAmount
     };
   }
 
@@ -355,7 +375,8 @@ export class TraitCalculator {
       metabolism: ['metabolicRate', 'energyEfficiency'],
       reproduction: ['reproductionCost', 'reproductionThreshold'],
       sensory: ['visionRange', 'detectionRadius'],
-      aggression: ['aggression', 'cooperativeness']
+      aggression: ['aggression'],
+      cooperation: ['cooperativeness', 'cooperationAmount']
     };
 
     const traits = proteinTraitMap[proteinName] || [];

@@ -38,7 +38,7 @@ export class OrganismRenderer {
   static getCacheKey(organism) {
     const p = organism.phenotype;
     // Include all visual traits that affect appearance
-    return `${p.size}_${p.color.h}_${p.color.s}_${p.color.l}_${p.segments}_${p.toxicity.toFixed(2)}_${p.armor.toFixed(2)}_${p.aggression.toFixed(2)}_${p.visionRange.toFixed(0)}_${p.maxSpeed.toFixed(2)}_${p.colorPattern?.type || 'none'}_${p.colorPattern?.intensity.toFixed(2) || '0'}`;
+    return `${p.size}_${p.color.h}_${p.color.s}_${p.color.l}_${p.segments}_${p.toxicity.toFixed(2)}_${p.armor.toFixed(2)}_${p.aggression.toFixed(2)}_${p.cooperativeness.toFixed(2)}_${p.visionRange.toFixed(0)}_${p.maxSpeed.toFixed(2)}_${p.colorPattern?.type || 'none'}_${p.colorPattern?.intensity.toFixed(2) || '0'}`;
   }
 
   /**
@@ -77,6 +77,7 @@ export class OrganismRenderer {
     this.renderBodySegments(offCtx, organism, fillColor, strokeColor, secondaryColor);
     this.renderArmorPlating(offCtx, size, segments, armor, color);
     this.renderAggressionSpikes(offCtx, size, segments, aggression, color);
+    this.renderCooperationTendrils(offCtx, size, segments, organism.phenotype.cooperativeness, color);
     this.renderVisionSensors(offCtx, size, segments, visionRange, color);
     this.renderSpeedFins(offCtx, size, maxSpeed, color);
     this.renderToxicityIndicator(offCtx, size, toxicity);
@@ -135,6 +136,7 @@ export class OrganismRenderer {
     this.renderBodySegments(offCtx, organism, fillColor, strokeColor, secondaryColor);
     this.renderArmorPlating(offCtx, size, segments, armor, color);
     this.renderAggressionSpikes(offCtx, size, segments, aggression, color);
+    this.renderCooperationTendrils(offCtx, size, segments, organism.phenotype.cooperativeness, color);
     this.renderVisionSensors(offCtx, size, segments, visionRange, color);
     this.renderSpeedFins(offCtx, size, maxSpeed, color);
     this.renderToxicityIndicator(offCtx, size, toxicity);
@@ -280,6 +282,11 @@ export class OrganismRenderer {
     // Player selection indicator
     if (organism.isPlayer) {
       this.renderPlayerIndicator(ctx, size);
+    }
+
+    // Cooperation glow (if recently cooperated)
+    if (organism._lastCooperation && Date.now() - organism._lastCooperation < 500) {
+      this.renderCooperationGlow(ctx, size);
     }
 
     ctx.restore();
@@ -450,6 +457,63 @@ export class OrganismRenderer {
         ctx.strokeStyle = `hsl(${Math.max(0, color.h - 20)}, ${color.s}%, ${Math.max(10, color.l - 40)}%)`;
         ctx.lineWidth = 1;
         ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+  }
+
+  /**
+   * Render cooperation tendrils - gentle appendages for highly cooperative organisms
+   */
+  static renderCooperationTendrils(ctx, size, segments, cooperativeness, color) {
+    if (cooperativeness <= 0.2) return; // Only show for moderately cooperative organisms
+
+    const segmentCount = segments || 1;
+    const segmentSize = size / segmentCount;
+    const coopIntensity = (cooperativeness - 0.2) / 0.8; // Scale from 0.2-1.0 to 0-1
+
+    for (let i = 0; i < segmentCount; i++) {
+      const x = -size / 2 + segmentSize / 2 + i * segmentSize;
+      const radius = segmentSize * 0.8;
+
+      // Number of tendrils based on cooperativeness
+      const tendrilCount = Math.floor(3 + coopIntensity * 5);
+      const tendrilLength = radius * (0.4 + coopIntensity * 0.5);
+
+      ctx.save();
+      ctx.globalAlpha = 0.6 + coopIntensity * 0.3;
+
+      for (let t = 0; t < tendrilCount; t++) {
+        const angle = (t / tendrilCount) * Math.PI * 2;
+        const baseX = x + Math.cos(angle) * radius;
+        const baseY = Math.sin(angle) * radius;
+
+        // Draw smooth, curved tendril
+        ctx.beginPath();
+        ctx.moveTo(baseX, baseY);
+
+        // Create gentle curve outward
+        const controlDist = tendrilLength * 0.6;
+        const controlX = x + Math.cos(angle) * (radius + controlDist);
+        const controlY = Math.sin(angle) * (radius + controlDist);
+        const endX = x + Math.cos(angle) * (radius + tendrilLength);
+        const endY = Math.sin(angle) * (radius + tendrilLength);
+
+        ctx.quadraticCurveTo(controlX, controlY, endX, endY);
+
+        // Green/cyan color for cooperation (friendly)
+        const tendrilHue = (color.h + 120) % 360; // Shift toward green/cyan
+        ctx.strokeStyle = `hsl(${tendrilHue}, ${Math.min(100, color.s + 20)}%, ${Math.min(70, color.l + 10)}%)`;
+        ctx.lineWidth = 1.5 + coopIntensity * 0.5;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+
+        // Add small circle at tip (helper nodes)
+        ctx.beginPath();
+        ctx.arc(endX, endY, 1 + coopIntensity * 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = `hsl(${tendrilHue}, 100%, ${Math.min(80, color.l + 20)}%)`;
+        ctx.fill();
       }
 
       ctx.restore();
@@ -713,6 +777,45 @@ export class OrganismRenderer {
     ctx.setLineDash([5, 5]);
     ctx.stroke();
     ctx.setLineDash([]);
+  }
+
+  /**
+   * Render cooperation glow effect (shown briefly after cooperation)
+   */
+  static renderCooperationGlow(ctx, size) {
+    const time = Date.now() / 300;
+    const pulse = 0.7 + Math.sin(time) * 0.3;
+
+    ctx.save();
+    ctx.globalAlpha = 0.6 * pulse;
+
+    // Green/cyan glow for cooperation
+    const gradient = ctx.createRadialGradient(0, 0, size * 0.5, 0, 0, size * 2);
+    gradient.addColorStop(0, 'rgba(100, 255, 150, 0.5)');
+    gradient.addColorStop(0.5, 'rgba(50, 200, 150, 0.3)');
+    gradient.addColorStop(1, 'rgba(0, 150, 100, 0)');
+
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(0, 0, size * 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Heart-like particles emanating
+    const particleCount = 3;
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (i / particleCount) * Math.PI * 2 + time;
+      const dist = size * (1 + pulse * 0.5);
+      const px = Math.cos(angle) * dist;
+      const py = Math.sin(angle) * dist;
+
+      ctx.globalAlpha = 0.8 * pulse;
+      ctx.fillStyle = '#64ff96';
+      ctx.beginPath();
+      ctx.arc(px, py, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
   }
 
   /**

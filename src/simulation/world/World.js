@@ -575,6 +575,25 @@ export class World {
     const ai2 = this.organismAIs.get(org2);
     const org1Attacking = ai1 && ai1.state === 'attacking';
     const org2Attacking = ai2 && ai2.state === 'attacking';
+    const org1Cooperating = ai1 && ai1.state === 'cooperating';
+    const org2Cooperating = ai2 && ai2.state === 'cooperating';
+
+    // Check for cooperation first (if same species and no one is attacking)
+    if (!org1Attacking && !org2Attacking && org1.isSameSpecies(org2)) {
+      // Try cooperation (energy sharing)
+      const cooperated1 = org1.cooperateWith(org2);
+      const cooperated2 = org2.cooperateWith(org1);
+
+      // Track cooperation for visual feedback
+      if (cooperated1 || cooperated2) {
+        org1._lastCooperation = Date.now();
+        org2._lastCooperation = Date.now();
+      }
+
+      // Push apart and return
+      this.pushOrganismsApart(org1, org2);
+      return;
+    }
 
     // Only apply combat if at least one is in attacking state
     if (!org1Attacking && !org2Attacking) {

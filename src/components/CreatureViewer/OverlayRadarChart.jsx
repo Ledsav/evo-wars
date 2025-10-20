@@ -14,7 +14,7 @@ export function OverlayRadarChart({ organisms }) {
 
   if (!organisms || organisms.length === 0) return null;
 
-  
+
   const traits = [
     {
       name: 'Size',
@@ -50,6 +50,11 @@ export function OverlayRadarChart({ organisms }) {
       name: 'Aggression',
       key: 'aggression',
       normalize: (val) => (val || 0.5) * 100,
+    },
+    {
+      name: 'Cooperation',
+      key: 'cooperativeness',
+      normalize: (val) => (val || 0) * 100,
     },
     {
       name: 'Reproduction',

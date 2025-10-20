@@ -138,7 +138,7 @@ export class Organism {
     Object.assign(phenotype, sensory);
 
     // Calculate behavioral traits
-    const behavior = TraitCalculator.calculateBehavior(proteins.aggression);
+    const behavior = TraitCalculator.calculateBehavior(proteins.aggression, proteins.cooperation);
     Object.assign(phenotype, behavior);
 
     // Pigmentation (if gene exists)
@@ -266,6 +266,46 @@ export class Organism {
 
     const absorbed = energyAmount * this.phenotype.energyEfficiency;
     this.energy = Math.min(this.maxEnergy, this.energy + absorbed);
+  }
+
+  /**
+   * Share energy with another organism (cooperation)
+   * Returns true if cooperation occurred
+   */
+  cooperateWith(other) {
+    if (!this.isAlive || !other.isAlive) return false;
+
+    // Must be same species to cooperate
+    if (!this.isSameSpecies(other)) return false;
+
+    // Don't cooperate with self
+    if (this.id === other.id) return false;
+
+    // Check if this organism is cooperative enough
+    if (this.phenotype.cooperativeness < 0.3) return false;
+
+    // Check if this organism has enough energy to share
+    const sharingThreshold = this.maxEnergy * 0.4; // Only share if above 40% energy
+    if (this.energy < sharingThreshold) return false;
+
+    // Check if other needs energy (below 70% energy)
+    const needsHelp = other.energy < other.maxEnergy * 0.7;
+    if (!needsHelp) return false;
+
+    // Share energy based on cooperationAmount trait
+    const amountToShare = Math.min(
+      this.phenotype.cooperationAmount,
+      this.energy - sharingThreshold, // Don't go below threshold
+      other.maxEnergy - other.energy  // Don't overfill recipient
+    );
+
+    if (amountToShare > 0) {
+      this.energy -= amountToShare;
+      other.energy = Math.min(other.maxEnergy, other.energy + amountToShare);
+      return true;
+    }
+
+    return false;
   }
 
   /**
