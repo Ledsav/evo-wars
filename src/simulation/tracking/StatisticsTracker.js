@@ -1,3 +1,5 @@
+import { PhenotypeComparator } from '../../core/organisms/PhenotypeComparator.js';
+
 /**
  * StatisticsTracker - Tracks time-series data for simulation statistics
  * Collects data at configurable intervals to avoid performance overhead
@@ -19,7 +21,7 @@ export class StatisticsTracker {
       averageEnergy: [],
       combatKills: [], // Cumulative combat kills over time
       cooperationEvents: [], // Cumulative cooperation events over time
-      averageGenomeLength: [], // Average genetic complexity over time
+      averageGenomicDivergence: [],
     };
 
     // Cumulative counters (not reset between samples)
@@ -64,32 +66,38 @@ export class StatisticsTracker {
 
     this.lastSampleTime = currentTime;
 
-    // Get species information
     const speciesMap = new Map();
-    const aliveOrganisms = world.organisms.filter(org => org.isAlive);
-
-    for (const org of aliveOrganisms) {
-      const speciesId = org.getSpeciesId();
-      if (!speciesMap.has(speciesId)) {
-        speciesMap.set(speciesId, 0);
-      }
-      speciesMap.set(speciesId, speciesMap.get(speciesId) + 1);
-    }
-
-    // Find top species (most populous)
+    let aliveCount = 0;
+    let totalEnergy = 0;
+    let totalGenomicDivergence = 0;
     let topSpeciesCount = 0;
-    if (speciesMap.size > 0) {
-      topSpeciesCount = Math.max(...speciesMap.values());
+
+    for (const org of world.organisms) {
+      if (!org.isAlive) continue;
+
+      aliveCount++;
+      totalEnergy += org.energy;
+      const speciesId = org.getSpeciesId();
+      if (org._divergenceSpeciesId !== speciesId) {
+        const reference = world.getSpeciesReference?.(speciesId);
+        org._genomicDivergence = reference
+          ? 1 - PhenotypeComparator.calculateGenomeSimilarity(org, reference)
+          : 0;
+        org._divergenceSpeciesId = speciesId;
+      }
+      totalGenomicDivergence += org._genomicDivergence || 0;
+
+      const speciesCount = (speciesMap.get(speciesId) || 0) + 1;
+      speciesMap.set(speciesId, speciesCount);
+      topSpeciesCount = Math.max(topSpeciesCount, speciesCount);
     }
 
-    // Calculate average energy
-    const averageEnergy = aliveOrganisms.length > 0
-      ? aliveOrganisms.reduce((sum, org) => sum + org.energy, 0) / aliveOrganisms.length
+    const averageEnergy = aliveCount > 0
+      ? totalEnergy / aliveCount
       : 0;
 
-    // Calculate average genome length (number of genes)
-    const averageGenomeLength = aliveOrganisms.length > 0
-      ? aliveOrganisms.reduce((sum, org) => sum + Object.keys(org.genome.genes).length, 0) / aliveOrganisms.length
+    const averageGenomicDivergence = aliveCount > 0
+      ? (totalGenomicDivergence / aliveCount) * 100
       : 0;
 
     // Update cumulative combat kills from world
@@ -104,14 +112,14 @@ export class StatisticsTracker {
 
     // Add data points
     this.data.time.push(world.time);
-    this.data.aliveOrganisms.push(aliveOrganisms.length);
+    this.data.aliveOrganisms.push(aliveCount);
     this.data.speciesCount.push(speciesMap.size);
     this.data.topSpeciesCount.push(topSpeciesCount);
     this.data.foodCount.push(world.foodParticles.length);
     this.data.averageEnergy.push(averageEnergy);
     this.data.combatKills.push(this.totalCombatKills);
     this.data.cooperationEvents.push(this.totalCooperationEvents);
-    this.data.averageGenomeLength.push(averageGenomeLength);
+    this.data.averageGenomicDivergence.push(averageGenomicDivergence);
 
     // Limit data points to prevent memory issues
     if (this.data.time.length > this.maxDataPoints) {
@@ -144,7 +152,7 @@ export class StatisticsTracker {
         averageEnergy: 0,
         combatKills: 0,
         cooperationEvents: 0,
-        averageGenomeLength: 0,
+        averageGenomicDivergence: 0,
       };
     }
 
@@ -157,7 +165,8 @@ export class StatisticsTracker {
       averageEnergy: this.data.averageEnergy[len - 1],
       combatKills: this.data.combatKills[len - 1],
       cooperationEvents: this.data.cooperationEvents[len - 1],
-      averageGenomeLength: this.data.averageGenomeLength[len - 1],
+      averageGenomicDivergence:
+        this.data.averageGenomicDivergence[len - 1],
     };
   }
 

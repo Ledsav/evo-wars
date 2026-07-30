@@ -19,7 +19,10 @@ export function ComparisonPopup({ organisms, onClose }) {
         <div className="comparison-popup-header">
           <div className="comparison-popup-title">
             <CompareIcon size={24} />
-            <h2>Species Comparison ({organisms.length})</h2>
+            <div>
+              <span className="eyebrow">Comparative morphology</span>
+              <h2>Species comparison · {organisms.length} samples</h2>
+            </div>
           </div>
 
           <div className="view-mode-toggle">
@@ -39,7 +42,11 @@ export function ComparisonPopup({ organisms, onClose }) {
             </button>
           </div>
 
-          <button className="comparison-popup-close" onClick={onClose}>
+          <button
+            className="comparison-popup-close"
+            onClick={onClose}
+            aria-label="Close species comparison"
+          >
             <CloseIcon size={24} />
           </button>
         </div>
@@ -51,8 +58,8 @@ export function ComparisonPopup({ organisms, onClose }) {
               <div className="comparison-legend">
                 {organisms.map((organism, index) => {
                   const info = typeof organism.getSpeciesInfo === 'function' ? organism.getSpeciesInfo() : null;
-                  const label = info ? `${info.emoji} ${info.name}` : `Species ${organism.id ?? index}`;
-                  const code = info?.code ? ` (${info.code})` : '';
+                  const label = info ? info.name : `Species ${organism.id ?? index}`;
+                  const code = info?.code ? `${info.code} · ` : '';
                   return (
                     <div key={organism.id || index} className="legend-item">
                       <div
@@ -60,7 +67,7 @@ export function ComparisonPopup({ organisms, onClose }) {
                         style={{ backgroundColor: getOrganismColor(index) }}
                       />
                       <span className="legend-label">
-                        {label}{code}
+                        {code}{label}
                       </span>
                       <span className="legend-stats">
                         Age: {((organism.age || 0) / 1000).toFixed(1)}s |
@@ -75,7 +82,7 @@ export function ComparisonPopup({ organisms, onClose }) {
             <div className="comparison-grid">
               {organisms.map((organism, index) => {
                 const info = typeof organism.getSpeciesInfo === 'function' ? organism.getSpeciesInfo() : null;
-                const title = info ? `${info.emoji} ${info.name}${info.code ? ` (${info.code})` : ''}` : `Species ${organism.id ?? index}`;
+                const title = info ? `${info.code} · ${info.name}` : `Species ${organism.id ?? index}`;
                 return (
                   <div key={organism.id || index} className="comparison-item">
                     <div className="comparison-item-header">
@@ -111,14 +118,14 @@ export function ComparisonPopup({ organisms, onClose }) {
 
 function getOrganismColor(index) {
   const colors = [
-    '#4ade80', 
-    '#60a5fa', 
-    '#a78bfa', 
-    '#f472b6', 
-    '#fb923c', 
-    '#34d399', 
-    '#ef4444', 
-    '#fbbf24', 
+    '#356f65',
+    '#60788c',
+    '#776b8a',
+    '#9a6673',
+    '#a87846',
+    '#587d70',
+    '#9b5d53',
+    '#9a874e',
   ];
   return colors[index % colors.length];
 }

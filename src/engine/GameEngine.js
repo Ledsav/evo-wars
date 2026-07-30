@@ -13,6 +13,12 @@ export class GameEngine {
     this.baseFixedDeltaTime = 16; // Base fixed time step in ms
     this.fixedDeltaTime = 16; // Current time step (affected by speed)
     this.simulationSpeed = 1; // Speed multiplier (0.25x, 0.5x, 1x, 2x, 4x)
+    this.maxFrameDelta = 100;
+    this.maxUpdatesPerFrame = 5;
+    this.lastRenderTime = 0;
+    this.animationFrameId = null;
+    this.boundLoop = this.loop.bind(this);
+    this.boundVisibilityChange = this.handleVisibilityChange.bind(this);
 
     // Callbacks
     this.onUpdate = null;
@@ -27,7 +33,12 @@ export class GameEngine {
 
     this.isRunning = true;
     this.lastTime = performance.now();
-    this.loop();
+    this.lastRenderTime = this.lastTime;
+    this.accumulator = 0;
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this.boundVisibilityChange);
+    }
+    this.animationFrameId = requestAnimationFrame(this.boundLoop);
   }
 
   /**
@@ -35,33 +46,76 @@ export class GameEngine {
    */
   stop() {
     this.isRunning = false;
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.boundVisibilityChange);
+    }
+    this.accumulator = 0;
   }
 
   /**
    * Main game loop using fixed time step
    */
-  loop() {
+  loop(currentTime = performance.now()) {
     if (!this.isRunning) return;
 
-    const currentTime = performance.now();
-    const deltaTime = currentTime - this.lastTime;
-    this.lastTime = currentTime;
-
-    // Accumulate frame time
-    this.accumulator += deltaTime;
-
-    // Update with fixed time step (applying speed multiplier)
-    while (this.accumulator >= this.baseFixedDeltaTime) {
-      // Pass scaled deltaTime to update (this affects simulation speed)
-      this.update(this.baseFixedDeltaTime * this.simulationSpeed);
-      this.accumulator -= this.baseFixedDeltaTime;
+    if (typeof document !== 'undefined' && document.hidden) {
+      this.lastTime = currentTime;
+      this.accumulator = 0;
+      this.animationFrameId = requestAnimationFrame(this.boundLoop);
+      return;
     }
 
-    // Render
-    this.render();
+    const rawDeltaTime = currentTime - this.lastTime;
+    const deltaTime = Math.min(Math.max(0, rawDeltaTime), this.maxFrameDelta);
+    this.lastTime = currentTime;
 
-    // Continue loop
-    requestAnimationFrame(() => this.loop());
+    this.accumulator += deltaTime;
+
+    let updates = 0;
+    while (
+      this.accumulator >= this.baseFixedDeltaTime &&
+      updates < this.maxUpdatesPerFrame
+    ) {
+      this.update(this.baseFixedDeltaTime * this.simulationSpeed);
+      this.accumulator -= this.baseFixedDeltaTime;
+      updates++;
+    }
+
+    if (updates === this.maxUpdatesPerFrame) {
+      this.accumulator = Math.min(this.accumulator, this.baseFixedDeltaTime);
+    }
+
+    const renderInterval = 1000 / this.getTargetRenderFps();
+    if (currentTime - this.lastRenderTime >= renderInterval - 1) {
+      this.render();
+      this.lastRenderTime = currentTime;
+    }
+
+    this.animationFrameId = requestAnimationFrame(this.boundLoop);
+  }
+
+  /**
+   * Reset timing when browser visibility changes so hidden time is never replayed.
+   */
+  handleVisibilityChange() {
+    this.lastTime = performance.now();
+    this.lastRenderTime = this.lastTime;
+    this.accumulator = 0;
+  }
+
+  /**
+   * Reduce render frequency as populations grow while keeping simulation updates stable.
+   */
+  getTargetRenderFps() {
+    const population = this.world.organisms.length;
+    if (population >= 1200) return 24;
+    if (population >= 700) return 30;
+    if (population >= 250) return 45;
+    return 60;
   }
 
   /**

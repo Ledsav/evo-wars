@@ -127,10 +127,8 @@ export class SpeciesNaming {
    * Get size descriptor based on size value
    */
   static getSizeDescriptor(size, seed) {
-    const range = this.SIZE_DESCRIPTORS.find(r => size <= r.max);
-    if (!range) {
-      range = this.SIZE_DESCRIPTORS[this.SIZE_DESCRIPTORS.length - 1];
-    }
+    const range = this.SIZE_DESCRIPTORS.find(r => size <= r.max)
+      ?? this.SIZE_DESCRIPTORS[this.SIZE_DESCRIPTORS.length - 1];
 
     const index = Math.floor(seed / 7) % range.names.length;
     return range.names[index];
@@ -140,10 +138,8 @@ export class SpeciesNaming {
    * Get behavior suffix based on aggression
    */
   static getBehaviorSuffix(aggression, seed) {
-    const range = this.BEHAVIOR_SUFFIXES.find(r => aggression <= r.max);
-    if (!range) {
-      range = this.BEHAVIOR_SUFFIXES[this.BEHAVIOR_SUFFIXES.length - 1];
-    }
+    const range = this.BEHAVIOR_SUFFIXES.find(r => aggression <= r.max)
+      ?? this.BEHAVIOR_SUFFIXES[this.BEHAVIOR_SUFFIXES.length - 1];
 
     const index = Math.floor(seed / 13) % range.names.length;
     return range.names[index];

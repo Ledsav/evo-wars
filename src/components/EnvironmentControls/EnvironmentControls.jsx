@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 /**
  * EnvironmentControls - Control environmental parameters
@@ -6,202 +6,121 @@ import { useState, useEffect } from 'react';
 export function EnvironmentControls({ world, onEnvironmentChange }) {
   const [saveIndicator, setSaveIndicator] = useState(false);
 
-
-  // Show save indicator briefly when settings change
-  const showSaveIndicator = () => {
+  const updateEnvironment = (parameter, parser = Number) => (event) => {
+    onEnvironmentChange({ [parameter]: parser(event.target.value) });
     setSaveIndicator(true);
-    setTimeout(() => setSaveIndicator(false), 1500);
+    window.setTimeout(() => setSaveIndicator(false), 1500);
   };
 
-  const handleFoodRateChange = (e) => {
-    const rate = parseFloat(e.target.value);
-    onEnvironmentChange({ foodSpawnRate: rate });
-    showSaveIndicator();
-  };
-
-  const handleTemperatureChange = (e) => {
-    const temp = parseFloat(e.target.value);
-    onEnvironmentChange({ temperature: temp });
-    showSaveIndicator();
-  };
-
-  const handleMutationRateChange = (e) => {
-    const rate = parseFloat(e.target.value);
-    onEnvironmentChange({ mutationRate: rate });
-    showSaveIndicator();
-  };
-
-  const handleInitialPopChange = (e) => {
-    const pop = parseInt(e.target.value);
-    onEnvironmentChange({ initialPopulation: pop });
-    showSaveIndicator();
-  };
-
-  const handleInitialFoodChange = (e) => {
-    const val = parseInt(e.target.value);
-    onEnvironmentChange({ initialFoodCount: val });
-    showSaveIndicator();
-  };
-
-  const handleInitialSpeciesChange = (e) => {
-    const val = parseInt(e.target.value);
-    onEnvironmentChange({ initialSpecies: val });
-    showSaveIndicator();
-  };
-
-  const handleSeparationChange = (e) => {
-    const val = parseInt(e.target.value);
-    onEnvironmentChange({ separationSections: val });
-    showSaveIndicator();
-  };
+  const controls = [
+    {
+      key: 'foodSpawnRate',
+      label: 'Food spawn rate',
+      value: world.foodSpawnRate || 0.5,
+      display: (world.foodSpawnRate || 0.5).toFixed(1),
+      min: 0,
+      max: 1,
+      step: 0.1,
+      description: 'Rate at which nutrient particles enter the culture',
+      parser: parseFloat
+    },
+    {
+      key: 'temperature',
+      label: 'Temperature',
+      value: world.temperature || 1,
+      display: `${(world.temperature || 1).toFixed(1)}°`,
+      min: 0,
+      max: 2,
+      step: 0.1,
+      description: 'Controls the metabolic activity of every specimen',
+      parser: parseFloat
+    },
+    {
+      key: 'mutationRate',
+      label: 'Mutation rate',
+      value: world.mutationRate || 0.05,
+      display: `${((world.mutationRate || 0.05) * 100).toFixed(0)}%`,
+      min: 0,
+      max: 0.3,
+      step: 0.01,
+      description: 'Probability of mutation during reproduction',
+      parser: parseFloat
+    },
+    {
+      key: 'initialPopulation',
+      label: 'Initial population',
+      value: world.initialPopulation || 10,
+      display: world.initialPopulation || 10,
+      min: 2,
+      max: 50,
+      step: 1,
+      description: 'Number of organisms introduced on restart',
+      parser: value => parseInt(value, 10)
+    },
+    {
+      key: 'initialFoodCount',
+      label: 'Initial nutrients',
+      value: world.initialFoodCount || 10,
+      display: world.initialFoodCount || 10,
+      min: 0,
+      max: 200,
+      step: 5,
+      description: 'Nutrient particles introduced on restart',
+      parser: value => parseInt(value, 10)
+    },
+    {
+      key: 'initialSpecies',
+      label: 'Initial species',
+      value: world.initialSpecies || 1,
+      display: world.initialSpecies || 1,
+      min: 1,
+      max: 10,
+      step: 1,
+      description: 'Distinct founder species introduced on restart',
+      parser: value => parseInt(value, 10)
+    },
+    {
+      key: 'separationSections',
+      label: 'Culture partitions',
+      value: world.separationSections || 1,
+      display: `${world.separationSections || 1} ${(world.separationSections || 1) === 1 ? 'section' : 'sections'}`,
+      min: 1,
+      max: 16,
+      step: 1,
+      description: 'Partitions used to segregate founder species',
+      parser: value => parseInt(value, 10)
+    }
+  ];
 
   return (
     <div className="environment-controls">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2>Environment Parameters</h2>
-        {saveIndicator && (
-          <span style={{
-            fontSize: '12px',
-            color: '#4CAF50',
-            opacity: saveIndicator ? 1 : 0,
-            transition: 'opacity 0.3s'
-          }}>
-            ✓ Saved
-          </span>
-        )}
+      <div className="panel-title-row">
+        <div className="panel-title">
+          <span className="eyebrow">Chamber protocol</span>
+          <h2>Environment</h2>
+        </div>
+        {saveIndicator && <span className="save-indicator">Saved</span>}
       </div>
 
-      <div className="control-group">
-        <div className="control-header">
-          <label>
-            <span className="control-icon">🍖</span>
-            Food Spawn Rate
-          </label>
-          <span className="control-value">{(world.foodSpawnRate || 0.5).toFixed(1)}</span>
-        </div>
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.1"
-          value={world.foodSpawnRate || 0.5}
-          onChange={handleFoodRateChange}
-        />
-        <div className="control-description">Higher = more food spawns</div>
-      </div>
-
-      <div className="control-group">
-        <div className="control-header">
-          <label>
-            <span className="control-icon">🌡️</span>
-            Temperature
-          </label>
-          <span className="control-value">{(world.temperature || 1.0).toFixed(1)}°</span>
-        </div>
-        <input
-          type="range"
-          min="0"
-          max="2"
-          step="0.1"
-          value={world.temperature || 1.0}
-          onChange={handleTemperatureChange}
-        />
-        <div className="control-description">Affects metabolism speed</div>
-      </div>
-
-      <div className="control-group">
-        <div className="control-header">
-          <label>
-            <span className="control-icon">🧬</span>
-            Mutation Rate
-          </label>
-          <span className="control-value">{((world.mutationRate || 0.05) * 100).toFixed(0)}%</span>
-        </div>
-        <input
-          type="range"
-          min="0"
-          max="0.3"
-          step="0.01"
-          value={world.mutationRate || 0.05}
-          onChange={handleMutationRateChange}
-        />
-        <div className="control-description">Chance of mutation on reproduction</div>
-      </div>
-
-      <div className="control-group">
-        <div className="control-header">
-          <label>
-            <span className="control-icon">👥</span>
-            Initial Population
-          </label>
-          <span className="control-value">{world.initialPopulation || 10}</span>
-        </div>
-        <input
-          type="range"
-          min="2"
-          max="50"
-          step="1"
-          value={world.initialPopulation || 10}
-          onChange={handleInitialPopChange}
-        />
-        <div className="control-description">Starting organisms on restart</div>
-      </div>
-
-      <div className="control-group">
-        <div className="control-header">
-          <label>
-            <span className="control-icon">🍏</span>
-            Initial Food
-          </label>
-          <span className="control-value">{world.initialFoodCount || 10}</span>
-        </div>
-        <input
-          type="range"
-          min="0"
-          max="200"
-          step="5"
-          value={world.initialFoodCount || 10}
-          onChange={handleInitialFoodChange}
-        />
-        <div className="control-description">Food items placed at start</div>
-      </div>
-
-      <div className="control-group">
-        <div className="control-header">
-          <label>
-            <span className="control-icon">🧫</span>
-            Initial Species
-          </label>
-          <span className="control-value">{world.initialSpecies || 1}</span>
-        </div>
-        <input
-          type="range"
-          min="1"
-          max="10"
-          step="1"
-          value={world.initialSpecies || 1}
-          onChange={handleInitialSpeciesChange}
-        />
-        <div className="control-description">Number of distinct starting species</div>
-      </div>
-
-      <div className="control-group">
-        <div className="control-header">
-          <label>
-            <span className="control-icon">🔲</span>
-            Separation
-          </label>
-          <span className="control-value">{world.separationSections || 1} {(world.separationSections || 1) === 1 ? 'section' : 'sections'}</span>
-        </div>
-        <input
-          type="range"
-          min="1"
-          max="16"
-          step="1"
-          value={world.separationSections || 1}
-          onChange={handleSeparationChange}
-        />
-        <div className="control-description">Divide world into sections (segregates species)</div>
+      <div className="protocol-grid">
+        {controls.map(control => (
+          <div className="control-group" key={control.key}>
+            <div className="control-header">
+              <label htmlFor={`environment-${control.key}`}>{control.label}</label>
+              <span className="control-value">{control.display}</span>
+            </div>
+            <input
+              id={`environment-${control.key}`}
+              type="range"
+              min={control.min}
+              max={control.max}
+              step={control.step}
+              value={control.value}
+              onChange={updateEnvironment(control.key, control.parser)}
+            />
+            <div className="control-description">{control.description}</div>
+          </div>
+        ))}
       </div>
     </div>
   );

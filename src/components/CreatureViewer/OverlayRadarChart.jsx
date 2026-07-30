@@ -65,8 +65,8 @@ export function OverlayRadarChart({ organisms }) {
 
   
   const colors = [
-    '#4ade80', '#60a5fa', '#a78bfa', '#f472b6',
-    '#fb923c', '#34d399', '#ef4444', '#fbbf24'
+    '#356f65', '#60788c', '#776b8a', '#9a6673',
+    '#a87846', '#587d70', '#9b5d53', '#9a874e'
   ];
 
   
@@ -119,7 +119,7 @@ export function OverlayRadarChart({ organisms }) {
         onClick={() => {
           if (svgRef.current) {
             const fname = timestampFilename('radar-overlay');
-            downloadSvgAsPng(svgRef.current, fname, '#0a1929', (filename) => {
+            downloadSvgAsPng(svgRef.current, fname, '#f5f4ee', (filename) => {
               notify('screenshot', `📸 Comparison chart saved: ${filename}`, { timeout: 3000 });
             });
           }
@@ -215,7 +215,7 @@ export function OverlayRadarChart({ organisms }) {
                   cy={point.y}
                   r={isOrgHovered ? 6 : 4}
                   fill={orgData.color}
-                  stroke="rgba(255, 255, 255, 0.9)"
+                  stroke="#f5f4ee"
                   strokeWidth="2"
                   style={{
                     opacity,
@@ -269,6 +269,7 @@ export function OverlayRadarChart({ organisms }) {
             return (
               <g key={i}>
                 <rect
+                  className={`radar-label-box ${isHovered ? 'is-hovered' : ''}`}
                   x={rectX}
                   y={rectY}
                   width={textWidth}
@@ -280,7 +281,7 @@ export function OverlayRadarChart({ organisms }) {
                   style={{ transition: 'all 0.2s ease' }}
                 />
                 <text
-                  className="radar-label"
+                  className={`radar-label ${isHovered ? 'is-hovered' : ''}`}
                   x={labelPos.x + dx}
                   y={labelPos.y + dy + 5}
                   textAnchor={textAnchor}

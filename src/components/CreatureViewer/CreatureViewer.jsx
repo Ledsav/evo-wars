@@ -138,6 +138,8 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
 
   
   const species = useMemo(() => {
+    if (!Number.isFinite(updateTrigger)) return [];
+
     const groups = {};
     const alive = world.getAliveOrganisms();
 
@@ -188,7 +190,7 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
 
     return result;
   
-  }, [updateTrigger]); 
+  }, [updateTrigger, world]);
 
   
 
@@ -213,8 +215,12 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
 
   return (
     <div className="creature-viewer">
-      <h2>Controls</h2>
+      <div className="panel-title">
+        <span className="eyebrow">Live classification</span>
+        <h2>Specimen catalogue</h2>
+      </div>
 
+      <div className="section-caption">Observation stains</div>
       <div className="overlay-toggles">
         <label className="overlay-toggle-item">
           <input
@@ -255,7 +261,10 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
       </div>
 
       <div className="species-header">
-        <h3>Species ({species.length}) - Showing {visibleSpecies.length}</h3>
+        <div>
+          <span className="eyebrow">Active samples</span>
+          <h3>{species.length} species · {visibleSpecies.length} shown</h3>
+        </div>
         <div className="species-header-actions">
           <div className="select-all-controls">
             <button
@@ -309,7 +318,7 @@ export function CreatureViewer({ world, onSpeciesHighlight, overlays, onUpdateOv
                 <div className="species-name">
                   {(() => {
                     const speciesInfo = sp.representative.getSpeciesInfo();
-                    return `${speciesInfo.emoji} ${speciesInfo.name}`;
+                    return `${speciesInfo.code} · ${speciesInfo.name}`;
                   })()}
                 </div>
                 <div className="species-count">Pop: {sp.organisms.length}</div>

@@ -14,7 +14,7 @@ export class Mutation {
    * Apply mutation to DNA sequence
    * Must be implemented by subclasses
    */
-  apply(dnaSequence, position) {
+  apply() {
     throw new Error('apply() must be implemented by subclass');
   }
 

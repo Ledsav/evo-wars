@@ -5,8 +5,12 @@ import { useState } from 'react';
  */
 import { SettingsIcon } from '../shared/Icons/Icons';
 
-export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomIn, onZoomOut, onZoomReset, onResetView, onOpenSettings }) {
+export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomIn, onZoomOut, onResetView, onOpenSettings }) {
   const [simulationSpeed, setSimulationSpeed] = useState(1);
+  const [experimentId] = useState(() => {
+    const dateCode = new Date().toISOString().slice(2, 10).replaceAll('-', '');
+    return `EVO-${dateCode}`;
+  });
 
   const handlePauseToggle = () => {
     world.togglePause();
@@ -38,15 +42,17 @@ export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomI
     }
   };
 
-  const handleSpeedReset = () => {
-    setSimulationSpeed(1);
-    gameEngine.setSimulationSpeed(1);
-  };
-
   const stats = world.getStats();
 
-  const formatElapsedTime = (seconds) => {
-    
+  const formatElapsedTime = (milliseconds) => {
+    const seconds = Number(milliseconds) / 1000;
+    if (seconds < 60) {
+      return Math.floor(seconds) + 's';
+    }
+    if (seconds < 3600) {
+      const minutes = Math.floor(seconds / 60);
+      return minutes + 'm';
+    }
     if (seconds < 86400) {
       const hours = Math.floor(seconds / 3600);
       return hours + 'h';
@@ -58,8 +64,15 @@ export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomI
 
 
   return (
-    <div className="simulation-controls">
+    <header className="simulation-controls">
+      <div className="experiment-identity">
+        <span className="eyebrow">Experiment</span>
+        <strong>Evo Wars</strong>
+        <span className="experiment-id">{experimentId}</span>
+      </div>
+
       <div className="controls-left">
+        <span className="instrument-label">Run controls</span>
         <button
           className={`control-button ${world.isPaused ? 'paused' : 'playing'}`}
           onClick={handlePauseToggle}
@@ -90,28 +103,12 @@ export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomI
           {/* <span>Restart</span> */}
         </button>
 
-        <button
-          className="control-button reset-view-button"
-          onClick={onResetView}
-          title="Reset View (Double-click canvas also works)"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="3"/>
-            <circle cx="12" cy="12" r="8"/>
-            <line x1="12" y1="2" x2="12" y2="4"/>
-            <line x1="12" y1="20" x2="12" y2="22"/>
-            <line x1="2" y1="12" x2="4" y2="12"/>
-            <line x1="20" y1="12" x2="22" y2="12"/>
-          </svg>
-        </button>
-
         <div className="zoom-controls">
-        
           <button
             className="control-button zoom-button"
             onClick={onZoomOut}
-            title="Scale Down (Smaller World)"
-            disabled={zoom <= 0.5}
+            title="Zoom out"
+            disabled={zoom <= 1}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="8" />
@@ -123,8 +120,8 @@ export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomI
           <button
             className="control-button zoom-button"
             onClick={onZoomIn}
-            title="Scale Up (Larger World)"
-            disabled={zoom >= 3}
+            title="Zoom in"
+            disabled={zoom >= 5}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="8" />
@@ -134,11 +131,19 @@ export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomI
             </svg>
           </button>
           <button
-            className="control-button zoom-button"
-            onClick={onZoomReset}
-            title="Reset Scale"
+            className="control-button zoom-button reset-view-button"
+            onClick={onResetView}
+            title="Reset microscope view (double-click canvas also works)"
+            aria-label="Reset microscope view"
           >
-            100%
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="3"/>
+              <circle cx="12" cy="12" r="8"/>
+              <line x1="12" y1="2" x2="12" y2="4"/>
+              <line x1="12" y1="20" x2="12" y2="22"/>
+              <line x1="2" y1="12" x2="4" y2="12"/>
+              <line x1="20" y1="12" x2="22" y2="12"/>
+            </svg>
           </button>
         </div>
 
@@ -169,13 +174,6 @@ export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomI
               <polyline points="12 8 16 12 12 16" />
               <line x1="8" y1="12" x2="16" y2="12" />
             </svg>
-          </button>
-          <button
-            className="control-button speed-button"
-            onClick={handleSpeedReset}
-            title="Reset Speed"
-          >
-            1x
           </button>
         </div>
       </div>
@@ -217,6 +215,6 @@ export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomI
           <SettingsIcon size={18} />
         </button>
       </div>
-    </div>
+    </header>
   );
 }

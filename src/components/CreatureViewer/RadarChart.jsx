@@ -71,55 +71,55 @@ export function RadarChart({ organism }) {
       name: 'Size',
       key: 'size',
       normalize: (val) => Math.min(100, Math.max(0, ((val - 8) / 12) * 100)),
-      color: '#4ade80'
+      color: '#4f8177'
     },
     {
       name: 'Speed',
       key: 'maxSpeed',
       normalize: (val) => Math.min(100, Math.max(0, ((val - 1) / 2) * 100)),
-      color: '#60a5fa'
+      color: '#607f96'
     },
     {
       name: 'Defense',
       key: 'armor',
       normalize: (val) => Math.min(100, Math.max(0, (val / 10) * 100)),
-      color: '#a78bfa'
+      color: '#7b708b'
     },
     {
       name: 'Metabolism',
       key: 'metabolicRate',
       normalize: (val) => Math.min(100, Math.max(0, ((val - 0.5) / 1.5) * 100)),
-      color: '#f472b6'
+      color: '#9a6878'
     },
     {
       name: 'Efficiency',
       key: 'energyEfficiency',
       normalize: (val) => Math.min(100, Math.max(0, ((val - 1) / 2) * 100)),
-      color: '#fb923c'
+      color: '#a97949'
     },
     {
       name: 'Vision',
       key: 'visionRange',
       normalize: (val) => Math.min(100, Math.max(0, ((val - 80) / 120) * 100)),
-      color: '#34d399'
+      color: '#5d8877'
     },
     {
       name: 'Aggression',
       key: 'aggression',
       normalize: (val) => (val || 0.5) * 100,
-      color: '#ef4444'
+      color: '#a45f59'
     },
     {
       name: 'Cooperation',
       key: 'cooperativeness',
       normalize: (val) => (val || 0) * 100,
-      color: '#22c55e'
+      color: '#688469'
     },
     {
       name: 'Reproduction',
       key: 'reproductionThreshold',
       normalize: (val) => Math.min(100, Math.max(0, ((val - 70) / 30) * 100)),
-      color: '#fbbf24'
+      color: '#9c884f'
     }
   ];
 
@@ -181,7 +181,7 @@ export function RadarChart({ organism }) {
           onClick={() => {
             if (svgRef.current) {
               const fname = timestampFilename('radar');
-              downloadSvgAsPng(svgRef.current, fname, '#0a1929', (filename) => {
+              downloadSvgAsPng(svgRef.current, fname, '#f5f4ee', (filename) => {
                 notify('screenshot', `📸 Radar chart saved: ${filename}`, { timeout: 3000 });
               });
             }
@@ -234,8 +234,8 @@ export function RadarChart({ organism }) {
           <polygon
             className="radar-polygon"
             points={polygonPoints}
-            fill="rgba(139, 92, 246, 0.2)"
-            stroke="rgba(139, 92, 246, 0.8)"
+            fill="rgba(53, 111, 101, 0.16)"
+            stroke="#356f65"
             strokeWidth="2"
           />
         </g>
@@ -264,7 +264,7 @@ export function RadarChart({ organism }) {
                   cy={point.y}
                   r={isHovered ? 7 : 5}
                   fill={trait.color}
-                  stroke="rgba(255, 255, 255, 0.8)"
+                  stroke="#f5f4ee"
                   strokeWidth="2"
                   style={{ pointerEvents: 'none', transition: 'all 0.2s ease' }}
                 />
@@ -316,6 +316,7 @@ export function RadarChart({ organism }) {
                 style={{ cursor: 'pointer' }}
               >
                 <rect
+                  className={`radar-label-box ${isHovered ? 'is-hovered' : ''}`}
                   x={rectX}
                   y={rectY}
                   width={textWidth}
@@ -327,7 +328,7 @@ export function RadarChart({ organism }) {
                   style={{ transition: 'all 0.2s ease' }}
                 />
                 <text
-                  className="radar-label"
+                  className={`radar-label ${isHovered ? 'is-hovered' : ''}`}
                   x={labelPos.x + dx}
                   y={labelPos.y + dy + 4}
                   textAnchor={textAnchor}

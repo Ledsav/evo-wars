@@ -16,17 +16,18 @@ import { getRecommendedWorldSize, isMobileDevice } from './utils/mobileDetect';
 import { downloadCanvas, timestampFilename } from './utils/screenshot';
 import { loadEnvironmentSettings, loadSampleFrequency, saveEnvironmentSettings, saveSampleFrequency } from './utils/storage';
 
-const WIDTH_RESOLUTIONS = {low: 800, medium: 1280, high: 1920, ultra: 2560};
-const HEIGHT_RESOLUTIONS = {low: 600, medium: 720, high: 1080, ultra: 1440};
+const DEFAULT_DISH_SIZE = 1440;
 
 function App() {
   
   const isMobile = isMobileDevice();
-  const initialSize = isMobile 
-    ? getRecommendedWorldSize() 
-    : { width: WIDTH_RESOLUTIONS.ultra, height: HEIGHT_RESOLUTIONS.ultra };
+  const recommendedSize = isMobile ? getRecommendedWorldSize() : null;
+  const initialDishSize = recommendedSize
+    ? Math.min(recommendedSize.width, recommendedSize.height)
+    : DEFAULT_DISH_SIZE;
+  const initialSize = { width: initialDishSize, height: initialDishSize };
   
-  const [worldSize, setWorldSize] = useState(initialSize);
+  const [worldSize] = useState(initialSize);
   const [world] = useState(() => {
     const w = new World(initialSize.width, initialSize.height);
     
@@ -163,64 +164,11 @@ function App() {
   };
 
   const handleZoomIn = () => {
-    const newZoom = Math.min(zoom + 0.25, 2);
-    setZoom(newZoom);
-    const baseWidth = WIDTH_RESOLUTIONS.ultra;
-    const baseHeight = HEIGHT_RESOLUTIONS.ultra;
-    const newSize = {
-      width: Math.floor(baseWidth * newZoom),
-      height: Math.floor(baseHeight * newZoom)
-    };
-
-    
-    world.width = newSize.width;
-    world.height = newSize.height;
-    setWorldSize(newSize);
-
-    
-    world.redistributeFood();
-
-    forceUpdate({});
+    canvasRef.current?.zoomIn?.();
   };
 
   const handleZoomOut = () => {
-    const newZoom = Math.max(zoom - 0.25, 0.5);
-    setZoom(newZoom);
-    const baseWidth = WIDTH_RESOLUTIONS.ultra;
-    const baseHeight = HEIGHT_RESOLUTIONS.ultra;
-    const newSize = {
-      width: Math.floor(baseWidth * newZoom),
-      height: Math.floor(baseHeight * newZoom)
-    };
-
-    
-    world.width = newSize.width;
-    world.height = newSize.height;
-    setWorldSize(newSize);
-
-    
-    for (const organism of world.organisms) {
-      organism.x = Math.min(organism.x, newSize.width - 20);
-      organism.y = Math.min(organism.y, newSize.height - 20);
-    }
-
-    
-    world.redistributeFood();
-
-    forceUpdate({});
-  };
-
-  const handleZoomReset = () => {
-    setZoom(1);
-    const newSize = { width: WIDTH_RESOLUTIONS.ultra, height: HEIGHT_RESOLUTIONS.ultra };
-    world.width = newSize.width;
-    world.height = newSize.height;
-    setWorldSize(newSize);
-
-    
-    world.redistributeFood();
-
-    forceUpdate({});
+    canvasRef.current?.zoomOut?.();
   };
 
   const handleUpdateSampleFrequency = (frequency) => {
@@ -257,18 +205,22 @@ function App() {
         zoom={zoom}
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
-        onZoomReset={handleZoomReset}
         onResetView={handleResetView}
         onOpenSettings={() => setSettingsOpen(true)}
       />
 
       <div className="main-container">
         <div className="canvas-section" ref={containerRef}>
+          <div className="chamber-readout" aria-hidden="true">
+            <span className="status-lamp" />
+            <span>Live culture</span>
+            <span className="chamber-id">CH-{worldSize.width}×{worldSize.height}</span>
+          </div>
           <button
             className="floating-action camera"
-            title="Save simulation screenshot"
+            title="Capture observation"
             onClick={handleCaptureSimulation}
-            aria-label="Save simulation screenshot"
+            aria-label="Capture observation"
           >
             <ScreenShotIcon size={18} />
           </button>
@@ -278,17 +230,29 @@ function App() {
             height={worldSize.height}
             highlightedSpeciesId={highlightedSpeciesId}
             overlays={overlays}
+            onViewScaleChange={setZoom}
             ref={canvasRef}
           />
+          <div className="chamber-scale" aria-hidden="true">
+            <span className="scale-line" />
+            <span>100 µm</span>
+          </div>
         </div>
 
         <div className="sidebar">
+          <div className="sidebar-heading">
+            <div>
+              <span className="eyebrow">Research console</span>
+              <strong>Observation record</strong>
+            </div>
+            <span className="record-status">Recording</span>
+          </div>
           <div className="tab-buttons">
             <button
               className={`tab-button ${activeTab === 'controls' ? 'active' : ''}`}
               onClick={() => setActiveTab('controls')}
             >
-              Controls
+              Specimens
             </button>
             <button
               className={`tab-button ${activeTab === 'environment' ? 'active' : ''}`}
@@ -300,13 +264,13 @@ function App() {
               className={`tab-button ${activeTab === 'statistics' ? 'active' : ''}`}
               onClick={() => setActiveTab('statistics')}
             >
-              Statistics
+              Metrics
             </button>
             <button
               className={`tab-button ${activeTab === 'genealogy' ? 'active' : ''}`}
               onClick={() => setActiveTab('genealogy')}
             >
-              Genealogy
+              Lineage
             </button>
           </div>
 

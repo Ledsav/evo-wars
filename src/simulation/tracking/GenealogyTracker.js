@@ -10,9 +10,6 @@ export class GenealogyTracker {
     // Root species (initial population)
     this.rootSpecies = new Set();
 
-    // Track which organisms we've seen to detect new species
-    this.seenOrganisms = new Set();
-
     // Performance: limit how often we check for new species
     this.lastCheckTime = 0;
     this.checkInterval = 100; // Check every 100ms
@@ -75,7 +72,6 @@ export class GenealogyTracker {
         const node = this.createSpeciesNode(speciesId, null, org);
         this.speciesNodes.set(speciesId, node);
         this.rootSpecies.add(speciesId);
-        this.seenOrganisms.add(org.id);
       }
     }
   }
@@ -110,10 +106,9 @@ export class GenealogyTracker {
         speciesRepresentatives.set(speciesId, org);
       }
 
-      // Check if this is a new organism (potential new species from mutation)
-      if (!this.seenOrganisms.has(org.id)) {
+      // Only inspect organisms whose species has not been registered.
+      if (!this.speciesNodes.has(speciesId)) {
         this.handleNewOrganism(org, world);
-        this.seenOrganisms.add(org.id);
       }
     }
 
@@ -152,9 +147,10 @@ export class GenealogyTracker {
 
     // This is a new species! Find its parent
     const parentId = organism.parentId;
-    let parentSpeciesId = null;
+    let parentSpeciesId =
+      world.speciesProfiles?.get(speciesId)?.parentSpeciesId ?? null;
 
-    if (parentId) {
+    if (parentSpeciesId === null && parentId) {
       // Find the parent organism's species
       const parent = world.organisms.find(org => org.id === parentId);
       if (parent) {
@@ -348,7 +344,6 @@ export class GenealogyTracker {
   clear() {
     this.speciesNodes.clear();
     this.rootSpecies.clear();
-    this.seenOrganisms.clear();
     this.lastCheckTime = 0;
   }
 }

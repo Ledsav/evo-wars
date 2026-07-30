@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
 import { NotificationsProvider } from './context/NotificationsContext.jsx'
 import './index.css'
+import './design/lab.css'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

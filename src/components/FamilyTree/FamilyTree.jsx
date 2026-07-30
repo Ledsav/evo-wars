@@ -33,14 +33,14 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
 
     
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = '#1a1a1a';
+    ctx.fillStyle = '#f6f5f0';
     ctx.fillRect(0, 0, width, height);
 
     
     const layout = genealogyTracker.getTreeLayout();
     if (layout.length === 0) {
       
-      ctx.fillStyle = '#888888';
+      ctx.fillStyle = '#69716d';
       ctx.font = '14px system-ui';
       ctx.textAlign = 'center';
       ctx.fillText('No species data yet. The tree will appear as organisms evolve.', width / 2, height / 2);
@@ -72,7 +72,7 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
     });
 
     
-    ctx.strokeStyle = '#444444';
+    ctx.strokeStyle = '#b9c0ba';
     ctx.lineWidth = 2;
 
     for (let depth = 0; depth < levelPositions.length - 1; depth++) {
@@ -119,10 +119,10 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
 
         
         if (node.extinct) {
-          ctx.fillStyle = '#2a2a2a';
-          ctx.strokeStyle = '#555555';
+          ctx.fillStyle = '#e5e7e2';
+          ctx.strokeStyle = '#9ea7a1';
         } else {
-          ctx.fillStyle = '#2a2a2a';
+          ctx.fillStyle = '#fffefa';
           ctx.strokeStyle = `hsl(${node.color.h}, ${node.color.s}%, ${node.color.l}%)`;
         }
 
@@ -154,7 +154,7 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
         } else if (node.extinct && !node.isExtinctGroup) {
           
           ctx.save();
-          ctx.strokeStyle = '#666666';
+          ctx.strokeStyle = '#8b938e';
           ctx.lineWidth = 2;
           const crossSize = currentNodeRadius * 0.5;
           ctx.beginPath();
@@ -167,7 +167,7 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
         } else if (node.isExtinctGroup) {
           
           ctx.save();
-          ctx.fillStyle = '#666666';
+          ctx.fillStyle = '#8b938e';
           ctx.font = `${currentNodeRadius * 1.2}px system-ui`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
@@ -190,7 +190,7 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
 
           ctx.beginPath();
           ctx.arc(badgeX, badgeY, badgeRadius, 0, Math.PI * 2);
-          ctx.fillStyle = '#4CAF50';
+          ctx.fillStyle = '#557f79';
           ctx.fill();
 
           
@@ -215,14 +215,14 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
         ctx.font = `${labelFontSize}px system-ui`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        ctx.fillStyle = node.extinct ? '#555555' : '#cccccc';
+        ctx.fillStyle = node.extinct ? '#8b938e' : '#424b47';
         ctx.fillText(labelText, x, y + currentNodeRadius + 3);
 
         
         if (node.extinct && !node.isExtinctGroup) {
           const extinctFontSize = isMaximized ? 9 : 7;
           ctx.font = `${extinctFontSize}px system-ui`;
-          ctx.fillStyle = '#777777';
+          ctx.fillStyle = '#8b938e';
           ctx.fillText('✝', x, y + currentNodeRadius + (isMaximized ? 14 : 11));
         }
       }
@@ -331,7 +331,11 @@ function FamilyTreePopup({ genealogyTracker, onClose }) {
     <div className="family-tree-popup-overlay" onClick={onClose}>
       <div className="family-tree-popup" onClick={(e) => e.stopPropagation()}>
         <div className="popup-header">
-          <h2>Species Genealogy - Maximized View</h2>
+          <div className="popup-title">
+            <span className="eyebrow">Evolutionary record</span>
+            <h2>Lineage registry</h2>
+            <span className="popup-subtitle">Expanded view</span>
+          </div>
           <button className="close-button" onClick={onClose} title="Close">
             ✕
           </button>
@@ -459,7 +463,10 @@ export function FamilyTree({ genealogyTracker }) {
     <>
       <div className="family-tree">
         <div className="family-tree-header">
-          <h2>Species Genealogy</h2>
+          <div className="panel-title">
+            <span className="eyebrow">Evolutionary record</span>
+            <h2>Lineage registry</h2>
+          </div>
           <button
             className="maximize-button"
             onClick={() => setIsMaximized(true)}
@@ -600,16 +607,16 @@ function drawHoverInfo(ctx, node, x, y, nodeRadius, canvasWidth, canvasHeight) {
   tooltipY = Math.max(10, Math.min(tooltipY, canvasHeight - tooltipHeight - 10));
 
   
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+  ctx.fillStyle = 'rgba(246, 245, 240, 0.96)';
   ctx.fillRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight);
 
   
-  ctx.strokeStyle = node.extinct ? '#666666' : `hsl(${node.color.h}, ${node.color.s}%, ${node.color.l}%)`;
+  ctx.strokeStyle = node.extinct ? '#8b938e' : `hsl(${node.color.h}, ${Math.min(node.color.s, 62)}%, ${node.color.l}%)`;
   ctx.lineWidth = 2;
   ctx.strokeRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight);
 
   
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = '#202624';
   ctx.font = '12px system-ui';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';

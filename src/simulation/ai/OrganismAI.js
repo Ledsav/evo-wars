@@ -509,8 +509,10 @@ export class OrganismAI {
   /**
    * Try to reproduce if conditions are met
    */
-  tryReproduce() {
-    if (this.organism.canReproduce() && Math.random() < 0.01) {
+  tryReproduce(deltaTime = 16) {
+    const attempts = Math.max(0.5, deltaTime / 32);
+    const reproductionChance = 1 - Math.pow(0.99, attempts);
+    if (this.organism.canReproduce() && Math.random() < reproductionChance) {
       return this.organism.reproduce(this.world.mutationRate || 0.05, this.world);
     }
     return null;

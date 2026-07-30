@@ -1,3 +1,5 @@
+import { VisualPhenotypeRenderer } from './visual/VisualPhenotypeRenderer.js';
+
 /**
  * OrganismRenderer - Renders organisms to canvas
  * Creates cell-like visual representation based on phenotype
@@ -12,23 +14,30 @@ export class OrganismRenderer {
   // Cache for pre-rendered organism appearances
   static renderCache = new Map();
   static maxCacheSize = 500; // Limit cache size to prevent memory issues
+  static backgroundCache = new Map();
+  static maxBackgroundCacheSize = 3;
 
   /**
    * Pre-compute and cache color strings for organism
    */
   static getColorStrings(organism) {
     const p = organism.phenotype;
-    if (!organism._cachedColors || organism._colorCacheKey !== this.getCacheKey(organism)) {
-      organism._cachedColors = {
-        fill: `hsl(${p.color.h}, ${p.color.s}%, ${p.color.l}%)`,
-        stroke: `hsl(${p.color.h}, ${p.color.s}%, ${p.color.l - 20}%)`,
-        secondary: p.colorPattern
-          ? `hsl(${(p.color.h + p.colorPattern.secondaryHueShift) % 360}, ${p.color.s}%, ${p.color.l + 10}%)`
-          : `hsl(${p.color.h}, ${p.color.s}%, ${p.color.l}%)`,
-        highlight: `hsl(${p.color.h}, 100%, 70%)`,
-      };
-      organism._colorCacheKey = this.getCacheKey(organism);
+    if (organism._cachedColors) {
+      return organism._cachedColors;
     }
+
+    const palette = p.visual?.palette;
+    const primaryHue = palette?.primaryHue ?? p.color.h;
+    const secondaryHue = palette?.secondaryHue
+      ?? ((p.color.h + (p.colorPattern?.secondaryHueShift || 0)) % 360);
+    const saturation = palette?.saturation ?? p.color.s;
+    const lightness = palette?.lightness ?? p.color.l;
+    organism._cachedColors = {
+      fill: `hsl(${primaryHue}, ${saturation}%, ${lightness}%)`,
+      stroke: `hsl(${primaryHue}, ${Math.max(18, saturation - 20)}%, ${Math.max(16, lightness - 24)}%)`,
+      secondary: `hsl(${secondaryHue}, ${Math.max(18, saturation - 8)}%, ${Math.min(82, lightness + 10)}%)`,
+      highlight: 'hsl(169, 24%, 42%)',
+    };
     return organism._cachedColors;
   }
 
@@ -36,9 +45,15 @@ export class OrganismRenderer {
    * Generate cache key for organism based on phenotype
    */
   static getCacheKey(organism) {
+    if (organism._renderCacheKey) {
+      return organism._renderCacheKey;
+    }
+
     const p = organism.phenotype;
     // Include all visual traits that affect appearance
-    return `${p.size}_${p.color.h}_${p.color.s}_${p.color.l}_${p.segments}_${p.toxicity.toFixed(2)}_${p.armor.toFixed(2)}_${p.aggression.toFixed(2)}_${p.cooperativeness.toFixed(2)}_${p.visionRange.toFixed(0)}_${p.maxSpeed.toFixed(2)}_${p.colorPattern?.type || 'none'}_${p.colorPattern?.intensity.toFixed(2) || '0'}`;
+    organism._renderCacheKey =
+      `${p.size}_${p.visual?.signature || 'legacy'}_${p.toxicity.toFixed(2)}_${p.armor.toFixed(2)}_${p.aggression.toFixed(2)}_${p.cooperativeness.toFixed(2)}_${p.visionRange.toFixed(0)}_${p.maxSpeed.toFixed(2)}`;
+    return organism._renderCacheKey;
   }
 
   /**
@@ -65,22 +80,7 @@ export class OrganismRenderer {
     offCtx.translate(cacheSize / 2, cacheSize / 2);
 
     // Render organism to offscreen canvas
-    const { color, segments, toxicity, armor, colorPattern, maxSpeed, aggression, visionRange } = organism.phenotype;
-
-    const fillColor = `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
-    const strokeColor = `hsl(${color.h}, ${color.s}%, ${color.l - 20}%)`;
-    const secondaryColor = colorPattern ?
-      `hsl(${(color.h + colorPattern.secondaryHueShift) % 360}, ${color.s}%, ${color.l + 10}%)` :
-      fillColor;
-
-    // Render all static visual features
-    this.renderBodySegments(offCtx, organism, fillColor, strokeColor, secondaryColor);
-    this.renderArmorPlating(offCtx, size, segments, armor, color);
-    this.renderAggressionSpikes(offCtx, size, segments, aggression, color);
-    this.renderCooperationTendrils(offCtx, size, segments, organism.phenotype.cooperativeness, color);
-    this.renderVisionSensors(offCtx, size, segments, visionRange, color);
-    this.renderSpeedFins(offCtx, size, maxSpeed, color);
-    this.renderToxicityIndicator(offCtx, size, toxicity);
+    VisualPhenotypeRenderer.render(offCtx, organism);
 
     // Store in cache
     if (this.renderCache.size >= this.maxCacheSize) {
@@ -124,22 +124,7 @@ export class OrganismRenderer {
     offCtx.scale(hiResScale, hiResScale);
 
     // Render organism to offscreen canvas using ORIGINAL phenotype sizes
-    const { color, segments, toxicity, armor, colorPattern, maxSpeed, aggression, visionRange } = organism.phenotype;
-
-    const fillColor = `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
-    const strokeColor = `hsl(${color.h}, ${color.s}%, ${color.l - 20}%)`;
-    const secondaryColor = colorPattern ?
-      `hsl(${(color.h + colorPattern.secondaryHueShift) % 360}, ${color.s}%, ${color.l + 10}%)` :
-      fillColor;
-
-    // Render all static visual features using original size (context is already scaled)
-    this.renderBodySegments(offCtx, organism, fillColor, strokeColor, secondaryColor);
-    this.renderArmorPlating(offCtx, size, segments, armor, color);
-    this.renderAggressionSpikes(offCtx, size, segments, aggression, color);
-    this.renderCooperationTendrils(offCtx, size, segments, organism.phenotype.cooperativeness, color);
-    this.renderVisionSensors(offCtx, size, segments, visionRange, color);
-    this.renderSpeedFins(offCtx, size, maxSpeed, color);
-    this.renderToxicityIndicator(offCtx, size, toxicity);
+    VisualPhenotypeRenderer.render(offCtx, organism);
 
     // Store in thumbnail cache
     if (this.thumbnailCache.size >= this.maxThumbnailCacheSize) {
@@ -157,6 +142,7 @@ export class OrganismRenderer {
   static clearCache() {
     this.renderCache.clear();
     this.thumbnailCache.clear();
+    this.backgroundCache.clear();
   }
 
   /**
@@ -174,11 +160,21 @@ export class OrganismRenderer {
    * Render organism with simple LOD (just a colored circle)
    */
   static renderSimple(ctx, organism) {
-    const { size } = organism.phenotype;
+    const visual = organism.phenotype.visual;
+    const size = organism.phenotype.size;
+    const aspectRatio = Math.min(1.8, visual?.aspectRatio || 1);
     const colors = this.getColorStrings(organism);
 
     ctx.beginPath();
-    ctx.arc(0, 0, size, 0, Math.PI * 2);
+    ctx.ellipse(
+      0,
+      0,
+      size * Math.max(0.82, aspectRatio * 0.72),
+      size * 0.72,
+      0,
+      0,
+      Math.PI * 2
+    );
     ctx.fillStyle = colors.fill;
     ctx.fill();
   }
@@ -187,25 +183,9 @@ export class OrganismRenderer {
    * Render organism with medium LOD (basic shape, no details)
    */
   static renderMedium(ctx, organism) {
-    const { size, segments } = organism.phenotype;
-    const colors = this.getColorStrings(organism);
-
-    // Simple segmented body without details
-    const segmentCount = segments || 1;
-    const segmentSize = size / segmentCount;
-
-    for (let i = 0; i < segmentCount; i++) {
-      const x = -size / 2 + segmentSize / 2 + i * segmentSize;
-      const radius = segmentSize * 0.8;
-
-      ctx.beginPath();
-      ctx.arc(x, 0, radius, 0, Math.PI * 2);
-      ctx.fillStyle = colors.fill;
-      ctx.fill();
-      ctx.strokeStyle = colors.stroke;
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
+    const cached = this.getCachedRender(organism);
+    const halfSize = cached.size / 2;
+    ctx.drawImage(cached.canvas, -halfSize, -halfSize);
   }
 
   /**
@@ -218,15 +198,14 @@ export class OrganismRenderer {
 
     // Determine LOD level based on scale (if provided in options)
     const scale = options.scale || 1;
-    const apparentSize = organism.phenotype.size * scale;
+    const apparentSize = organism.phenotype.size * scale / (options.lodBias || 1);
     const lod = this.getLOD(apparentSize);
 
     ctx.save();
     ctx.translate(organism.x, organism.y);
     ctx.rotate(organism.rotation);
 
-  const { size, metabolicRate } = organism.phenotype;
-    const colors = this.getColorStrings(organism);
+    const { size, metabolicRate } = organism.phenotype;
 
     // Use simple rendering for distant/small organisms
     if (lod === 'simple') {
@@ -245,22 +224,18 @@ export class OrganismRenderer {
       return;
     }
 
-    // Highlight glow effect (drawn before cached organism)
+    // Scientific selection marker drawn before the cached organism
     if (isHighlighted) {
       ctx.save();
-      ctx.shadowColor = colors.highlight;
-      ctx.shadowBlur = 20;
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 0;
-
-      // Pulsing highlight ring
       const time = Date.now() / 500;
-      const pulseSize = size + 8 + Math.sin(time) * 3;
+      const pulseSize = size + 7 + Math.sin(time) * 1.5;
       ctx.beginPath();
       ctx.arc(0, 0, pulseSize, 0, Math.PI * 2);
-      ctx.strokeStyle = colors.highlight;
-      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(63, 104, 98, 0.92)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
       ctx.stroke();
+      ctx.setLineDash([]);
       ctx.restore();
     }
 
@@ -276,6 +251,7 @@ export class OrganismRenderer {
 
     // Speed trail overlay (optional visualization) - dynamic overlay
     if (overlays.showSpeed) {
+      const colors = this.getColorStrings(organism);
       this.renderSpeedTrail(ctx, organism, size, organism.phenotype.maxSpeed, colors);
     }
 
@@ -679,22 +655,24 @@ export class OrganismRenderer {
   }
 
   /**
-   * Render metabolism glow behind body
+   * Render metabolism assay contours behind the body
    */
   static renderMetabolismGlow(ctx, size, metabolicRate) {
     const t = Date.now() / 600;
     const pulse = 0.85 + Math.sin(t) * 0.15;
     const glowIntensity = Math.min(1, (metabolicRate || 1) / 2);
-    const glowRadius = size * (1.4 + glowIntensity * 1.2) * pulse;
+    const contourRadius = size * (1.25 + glowIntensity * 0.8) * pulse;
 
-    const grad = ctx.createRadialGradient(0, 0, size * 0.5, 0, 0, glowRadius);
-    grad.addColorStop(0, `rgba(255, 200, 120, ${0.18 + glowIntensity * 0.15})`);
-    grad.addColorStop(1, 'rgba(255, 140, 0, 0)');
-
-    ctx.beginPath();
-    ctx.fillStyle = grad;
-    ctx.arc(0, 0, glowRadius, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.save();
+    ctx.strokeStyle = `rgba(183, 122, 43, ${0.22 + glowIntensity * 0.2})`;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 3]);
+    for (let index = 0; index < 2; index++) {
+      ctx.beginPath();
+      ctx.arc(0, 0, contourRadius + index * size * 0.22, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   // ===========================
@@ -772,35 +750,30 @@ export class OrganismRenderer {
   static renderPlayerIndicator(ctx, size) {
     ctx.beginPath();
     ctx.arc(0, 0, size + 5, 0, Math.PI * 2);
-    ctx.strokeStyle = '#00ffff';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([5, 5]);
+    ctx.strokeStyle = 'rgba(63, 104, 98, 0.9)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
     ctx.stroke();
     ctx.setLineDash([]);
   }
 
   /**
-   * Render cooperation glow effect (shown briefly after cooperation)
+   * Render cooperation event marker
    */
   static renderCooperationGlow(ctx, size) {
     const time = Date.now() / 300;
     const pulse = 0.7 + Math.sin(time) * 0.3;
 
     ctx.save();
-    ctx.globalAlpha = 0.6 * pulse;
-
-    // Green/cyan glow for cooperation
-    const gradient = ctx.createRadialGradient(0, 0, size * 0.5, 0, 0, size * 2);
-    gradient.addColorStop(0, 'rgba(100, 255, 150, 0.5)');
-    gradient.addColorStop(0.5, 'rgba(50, 200, 150, 0.3)');
-    gradient.addColorStop(1, 'rgba(0, 150, 100, 0)');
-
-    ctx.fillStyle = gradient;
+    ctx.globalAlpha = 0.55 * pulse;
+    ctx.strokeStyle = 'rgba(85, 127, 121, 0.74)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
     ctx.beginPath();
-    ctx.arc(0, 0, size * 2, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.arc(0, 0, size * 1.55, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
 
-    // Heart-like particles emanating
     const particleCount = 3;
     for (let i = 0; i < particleCount; i++) {
       const angle = (i / particleCount) * Math.PI * 2 + time;
@@ -809,7 +782,7 @@ export class OrganismRenderer {
       const py = Math.sin(angle) * dist;
 
       ctx.globalAlpha = 0.8 * pulse;
-      ctx.fillStyle = '#64ff96';
+      ctx.fillStyle = '#557f79';
       ctx.beginPath();
       ctx.arc(px, py, 2, 0, Math.PI * 2);
       ctx.fill();
@@ -823,10 +796,10 @@ export class OrganismRenderer {
    */
   static renderSpeciesLabel(ctx, organism) {
     const info = typeof organism.getSpeciesInfo === 'function' ? organism.getSpeciesInfo() : null;
-    const label = info ? `${info.emoji} ${info.name}${info.code ? ` (${info.code})` : ''}` : `Species ${organism.getSpeciesId().toString().slice(0, 6)}`;
+    const label = info ? `${info.code || 'SPEC'} · ${info.name}` : `Species ${organism.getSpeciesId().toString().slice(0, 6)}`;
 
     ctx.save();
-    ctx.font = 'bold 12px Arial';
+    ctx.font = '600 11px "Cascadia Mono", monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
 
@@ -836,7 +809,7 @@ export class OrganismRenderer {
   // Background
   const metrics = ctx.measureText(label);
     const padding = 4;
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillStyle = 'rgba(246, 245, 240, 0.92)';
     ctx.fillRect(
       x - metrics.width / 2 - padding,
       y - 12 - padding,
@@ -845,7 +818,7 @@ export class OrganismRenderer {
     );
 
     // Text
-    ctx.fillStyle = `hsl(${organism.phenotype.color.h}, 100%, 70%)`;
+    ctx.fillStyle = '#29312e';
     ctx.fillText(label, x, y);
 
     ctx.restore();
@@ -940,18 +913,18 @@ export class OrganismRenderer {
     const y = organism.y - organism.phenotype.size - 10;
 
     // Background
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    ctx.fillStyle = 'rgba(32, 38, 36, 0.2)';
     ctx.fillRect(x, y, barWidth, barHeight);
 
     // Energy level
     const energyRatio = organism.energy / organism.maxEnergy;
-    const energyColor = energyRatio > 0.5 ? '#4ade80' : energyRatio > 0.25 ? '#fbbf24' : '#ef4444';
+    const energyColor = energyRatio > 0.5 ? '#557f79' : energyRatio > 0.25 ? '#b77a2b' : '#a54a3f';
 
     ctx.fillStyle = energyColor;
     ctx.fillRect(x, y, barWidth * energyRatio, barHeight);
 
     // Border
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.strokeStyle = 'rgba(32, 38, 36, 0.42)';
     ctx.lineWidth = 1;
     ctx.strokeRect(x, y, barWidth, barHeight);
   }
@@ -1031,13 +1004,13 @@ export class OrganismRenderer {
       ctx.save();
       ctx.beginPath();
       ctx.arc(organism.x, organism.y, detectionRadius, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(135, 206, 250, 0.25)'; // light blue
+      ctx.strokeStyle = 'rgba(104, 127, 145, 0.28)';
       ctx.lineWidth = 1;
       ctx.stroke();
 
       ctx.beginPath();
       ctx.arc(organism.x, organism.y, visionRange, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(30, 144, 255, 0.2)'; // dodger blue
+      ctx.strokeStyle = 'rgba(104, 127, 145, 0.38)';
       ctx.lineWidth = 1;
       ctx.setLineDash([6, 4]);
       ctx.stroke();
@@ -1053,8 +1026,8 @@ export class OrganismRenderer {
       const ringRadius = organism.phenotype.size + 10 * pulse;
       ctx.beginPath();
       ctx.arc(organism.x, organism.y, ringRadius, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(72, 187, 120, 0.9)'; // brighter green
-      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(117, 108, 131, 0.78)';
+      ctx.lineWidth = 1.5;
       ctx.setLineDash([8, 6]);
       ctx.stroke();
       ctx.setLineDash([]);
@@ -1068,27 +1041,17 @@ export class OrganismRenderer {
   static renderFood(ctx, food) {
     ctx.save();
 
-    // Glow effect
-    const gradient = ctx.createRadialGradient(
-      food.x, food.y, 0,
-      food.x, food.y, food.radius * 2
-    );
-    gradient.addColorStop(0, 'rgba(144, 238, 144, 0.8)');
-    gradient.addColorStop(0.5, 'rgba(144, 238, 144, 0.4)');
-    gradient.addColorStop(1, 'rgba(144, 238, 144, 0)');
-
-    ctx.fillStyle = gradient;
+    ctx.fillStyle = 'rgba(160, 138, 78, 0.2)';
     ctx.beginPath();
-    ctx.arc(food.x, food.y, food.radius * 2, 0, Math.PI * 2);
+    ctx.arc(food.x, food.y, food.radius * 1.7, 0, Math.PI * 2);
     ctx.fill();
 
-    // Core
-    ctx.fillStyle = '#90EE90';
+    ctx.fillStyle = '#a48c56';
     ctx.beginPath();
     ctx.arc(food.x, food.y, food.radius, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.strokeStyle = '#32CD32';
+    ctx.strokeStyle = '#74633e';
     ctx.lineWidth = 1;
     ctx.stroke();
 
@@ -1099,15 +1062,48 @@ export class OrganismRenderer {
    * Render world background
    */
   static renderBackground(ctx, width, height) {
-    // Gradient background
-    const gradient = ctx.createLinearGradient(0, 0, 0, height);
-    gradient.addColorStop(0, '#204f81ff');
-    gradient.addColorStop(1, '#061629ff');
+    const cacheKey = `${width}x${height}`;
+    let background = this.backgroundCache.get(cacheKey);
+
+    if (!background) {
+      background = document.createElement('canvas');
+      background.width = width;
+      background.height = height;
+      this.drawBackgroundLayer(background.getContext('2d'), width, height);
+
+      if (this.backgroundCache.size >= this.maxBackgroundCacheSize) {
+        const firstKey = this.backgroundCache.keys().next().value;
+        this.backgroundCache.delete(firstKey);
+      }
+      this.backgroundCache.set(cacheKey, background);
+    }
+
+    ctx.drawImage(background, 0, 0);
+  }
+
+  /**
+   * Draw the static culture medium into an offscreen cache.
+   */
+  static drawBackgroundLayer(ctx, width, height) {
+    const { centerX, centerY, radius } = this.getDishGeometry(width, height);
+    const gradient = ctx.createRadialGradient(
+      centerX - radius * 0.22,
+      centerY - radius * 0.28,
+      radius * 0.08,
+      centerX,
+      centerY,
+      radius
+    );
+    gradient.addColorStop(0, '#f3f3e9');
+    gradient.addColorStop(0.58, '#e8ece2');
+    gradient.addColorStop(1, '#d8e0d7');
+
+    ctx.save();
+    this.clipToDish(ctx, width, height);
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
 
-    // Grid pattern
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.strokeStyle = 'rgba(70, 82, 76, 0.075)';
     ctx.lineWidth = 1;
 
     const gridSize = 40;
@@ -1124,6 +1120,85 @@ export class OrganismRenderer {
       ctx.lineTo(width, y);
       ctx.stroke();
     }
+
+    ctx.fillStyle = 'rgba(83, 101, 91, 0.08)';
+    for (let index = 0; index < 72; index++) {
+      const angle = index * 2.399963;
+      const distance = Math.sqrt((index + 0.5) / 72) * radius * 0.92;
+      const x = centerX + Math.cos(angle) * distance;
+      const y = centerY + Math.sin(angle) * distance;
+      const speckSize = 1 + (index % 3) * 0.55;
+      ctx.beginPath();
+      ctx.arc(x, y, speckSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /**
+   * Get the visible glass dish geometry.
+   */
+  static getDishGeometry(width, height) {
+    return {
+      centerX: width / 2,
+      centerY: height / 2,
+      radius: Math.max(0, Math.min(width, height) / 2 - 8)
+    };
+  }
+
+  /**
+   * Clip subsequent rendering to the culture medium.
+   */
+  static clipToDish(ctx, width, height) {
+    const { centerX, centerY, radius } = this.getDishGeometry(width, height);
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.clip();
+  }
+
+  /**
+   * Render the glass lip and registration marks over the culture.
+   */
+  static renderDishFrame(ctx, width, height) {
+    const { centerX, centerY, radius } = this.getDishGeometry(width, height);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius - 1, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(69, 82, 76, 0.68)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius - 7, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.lineWidth = 5;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius - 12, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(85, 104, 94, 0.18)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(64, 77, 71, 0.5)';
+    ctx.lineWidth = 2;
+    for (let index = 0; index < 24; index++) {
+      const angle = index * Math.PI / 12;
+      const innerRadius = radius - (index % 6 === 0 ? 27 : 20);
+      const outerRadius = radius - 11;
+      ctx.beginPath();
+      ctx.moveTo(
+        centerX + Math.cos(angle) * innerRadius,
+        centerY + Math.sin(angle) * innerRadius
+      );
+      ctx.lineTo(
+        centerX + Math.cos(angle) * outerRadius,
+        centerY + Math.sin(angle) * outerRadius
+      );
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   /**
@@ -1142,10 +1217,9 @@ export class OrganismRenderer {
     ctx.save();
 
     // Draw vertical walls
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-    ctx.lineWidth = 3;
-    ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
-    ctx.shadowBlur = 5;
+    ctx.strokeStyle = 'rgba(82, 95, 89, 0.42)';
+    ctx.lineWidth = 2;
+    ctx.shadowBlur = 0;
 
     for (let i = 1; i < cols; i++) {
       const x = i * sectionWidth;
@@ -1155,11 +1229,11 @@ export class OrganismRenderer {
       ctx.stroke();
 
       // Draw wall segments for visual effect
-      ctx.strokeStyle = 'rgba(200, 200, 255, 0.3)';
-      ctx.lineWidth = 8;
+      ctx.strokeStyle = 'rgba(120, 130, 124, 0.16)';
+      ctx.lineWidth = 7;
       ctx.stroke();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(82, 95, 89, 0.42)';
+      ctx.lineWidth = 2;
     }
 
     // Draw horizontal walls
@@ -1171,16 +1245,16 @@ export class OrganismRenderer {
       ctx.stroke();
 
       // Draw wall segments for visual effect
-      ctx.strokeStyle = 'rgba(200, 200, 255, 0.3)';
-      ctx.lineWidth = 8;
+      ctx.strokeStyle = 'rgba(120, 130, 124, 0.16)';
+      ctx.lineWidth = 7;
       ctx.stroke();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(82, 95, 89, 0.42)';
+      ctx.lineWidth = 2;
     }
 
     // Draw section numbers/labels
     ctx.shadowBlur = 0;
-    ctx.font = 'bold 14px Arial';
+    ctx.font = '600 12px "Cascadia Mono", monospace';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
 
@@ -1191,12 +1265,12 @@ export class OrganismRenderer {
       const y = row * sectionHeight + 10;
 
       // Draw semi-transparent background for label
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      ctx.fillStyle = 'rgba(246, 245, 240, 0.78)';
       ctx.fillRect(x - 2, y - 2, 80, 20);
 
       // Draw label
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-      ctx.fillText(`Section ${s + 1}`, x, y);
+      ctx.fillStyle = 'rgba(48, 57, 53, 0.78)';
+      ctx.fillText(`CHAMBER ${s + 1}`, x, y);
     }
 
     ctx.restore();

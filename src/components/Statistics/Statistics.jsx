@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import './Statistics.css';
 
 /**
- * Format elapsed time (seconds) into a human-readable string
+ * Format elapsed simulation time into a human-readable string.
  */
-function formatElapsedTime(seconds) {
+function formatElapsedTime(milliseconds) {
+  const seconds = Number(milliseconds) / 1000;
   if (seconds < 60) {
     return Math.floor(seconds) + 's';
   }
@@ -40,11 +41,11 @@ function LineChart({ data, lines, width = 400, height = 200, title }) {
     ctx.clearRect(0, 0, width, height);
 
     
-    ctx.fillStyle = '#1a1a1a';
+    ctx.fillStyle = '#f6f5f0';
     ctx.fillRect(0, 0, width, height);
 
     
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = '#202624';
     ctx.font = 'bold 14px system-ui';
     ctx.textAlign = 'center';
     ctx.fillText(title, width / 2, 20);
@@ -83,7 +84,7 @@ function LineChart({ data, lines, width = 400, height = 200, title }) {
     const scaleY = (value) => padding.top + chartHeight - ((value - minY) / yRange) * chartHeight;
 
     
-    ctx.strokeStyle = '#333333';
+    ctx.strokeStyle = '#d6dad4';
     ctx.lineWidth = 1;
 
     
@@ -97,7 +98,7 @@ function LineChart({ data, lines, width = 400, height = 200, title }) {
 
       
       const value = maxY - (yRange / ySteps) * i;
-      ctx.fillStyle = '#888888';
+      ctx.fillStyle = '#69716d';
       ctx.font = '11px system-ui';
       ctx.textAlign = 'right';
       ctx.fillText(value.toFixed(0), padding.left - 10, y + 4);
@@ -114,14 +115,14 @@ function LineChart({ data, lines, width = 400, height = 200, title }) {
 
 
       const time = minTime + (timeRange / xSteps) * i;
-      ctx.fillStyle = '#888888';
+      ctx.fillStyle = '#69716d';
       ctx.font = '11px system-ui';
       ctx.textAlign = 'center';
       ctx.fillText(formatElapsedTime(time), x, height - 10);
     }
 
     
-    ctx.strokeStyle = '#666666';
+    ctx.strokeStyle = '#9ea7a1';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(padding.left, padding.top);
@@ -167,7 +168,7 @@ function LineChart({ data, lines, width = 400, height = 200, title }) {
       ctx.fillRect(padding.left + chartWidth + 5, legendY - 8, 12, 12);
 
       
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = '#202624';
       ctx.fillText(line.label, padding.left + chartWidth + 22, legendY + 2);
       legendY += 18;
     }
@@ -200,40 +201,48 @@ export function Statistics({ statsTracker, onUpdateSampleFrequency }) {
 
   
   const organismsLines = [
-    { key: 'aliveOrganisms', label: 'Organisms', color: '#4CAF50', enabled: true },
+    { key: 'aliveOrganisms', label: 'Organisms', color: '#557f79', enabled: true },
   ];
 
   const speciesLines = [
-    { key: 'speciesCount', label: 'Species', color: '#2196F3', enabled: true },
+    { key: 'speciesCount', label: 'Species', color: '#687f91', enabled: true },
   ];
 
   const topSpeciesLines = [
-    { key: 'topSpeciesCount', label: 'Top Species', color: '#FF9800', enabled: true },
+    { key: 'topSpeciesCount', label: 'Top Species', color: '#b77a2b', enabled: true },
   ];
 
   const resourceLines = [
-    { key: 'foodCount', label: 'Food', color: '#8BC34A', enabled: true },
+    { key: 'foodCount', label: 'Food', color: '#8a8558', enabled: true },
   ];
 
   const energyLines = [
-    { key: 'averageEnergy', label: 'Avg Energy', color: '#FFC107', enabled: true },
+    { key: 'averageEnergy', label: 'Avg Energy', color: '#a18448', enabled: true },
   ];
 
   const combatLines = [
-    { key: 'combatKills', label: 'Combat Kills', color: '#F44336', enabled: true },
+    { key: 'combatKills', label: 'Combat Kills', color: '#a54a3f', enabled: true },
   ];
 
   const cooperationLines = [
-    { key: 'cooperationEvents', label: 'Cooperation Events', color: '#9C27B0', enabled: true },
+    { key: 'cooperationEvents', label: 'Cooperation Events', color: '#756c83', enabled: true },
   ];
 
   const genomeLines = [
-    { key: 'averageGenomeLength', label: 'Avg Genome Length', color: '#00BCD4', enabled: true },
+    {
+      key: 'averageGenomicDivergence',
+      label: 'Avg Genetic Divergence',
+      color: '#5f7c7f',
+      enabled: true
+    },
   ];
 
   return (
     <div className="statistics">
-      <h2>Simulation Statistics</h2>
+      <div className="panel-title">
+        <span className="eyebrow">Recorded measurements</span>
+        <h2>Metrics</h2>
+      </div>
 
       {/* Current values */}
       <div className="stats-summary">
@@ -262,8 +271,10 @@ export function Statistics({ statsTracker, onUpdateSampleFrequency }) {
           <div className="stat-value">{latest.cooperationEvents}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Avg Genome Length</div>
-          <div className="stat-value">{latest.averageGenomeLength.toFixed(1)}</div>
+          <div className="stat-label">Avg Genetic Divergence</div>
+          <div className="stat-value">
+            {latest.averageGenomicDivergence.toFixed(1)}%
+          </div>
         </div>
       </div>
 
@@ -294,7 +305,7 @@ export function Statistics({ statsTracker, onUpdateSampleFrequency }) {
             disabled={dataPoints === 0}
             title="Download statistics as JSON file"
           >
-            📥 JSON
+            JSON
           </button>
           <button
             className="export-button"
@@ -302,7 +313,7 @@ export function Statistics({ statsTracker, onUpdateSampleFrequency }) {
             disabled={dataPoints === 0}
             title="Download statistics as CSV file (Excel compatible)"
           >
-            📊 CSV
+            CSV
           </button>
           <button
             className="export-button"
@@ -314,7 +325,7 @@ export function Statistics({ statsTracker, onUpdateSampleFrequency }) {
             disabled={dataPoints === 0}
             title="View statistical summary in console"
           >
-            📈 Summary
+            Summary
           </button>
         </div>
       </div>
@@ -376,7 +387,7 @@ export function Statistics({ statsTracker, onUpdateSampleFrequency }) {
             lines={genomeLines}
             width={450}
             height={220}
-            title="Average Genome Complexity Over Time"
+            title="Average Genetic Divergence Over Time"
           />
         </div>
       ) : (

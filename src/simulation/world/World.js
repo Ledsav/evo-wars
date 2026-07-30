@@ -1,5 +1,6 @@
 import { Genome } from '../../core/genetics/Genome.js';
 import { Organism } from '../../core/organisms/Organism.js';
+import { PhenotypeComparator } from '../../core/organisms/PhenotypeComparator.js';
 import { ObjectPool } from '../../engine/performance/ObjectPool.js';
 import { OrganismAI } from '../ai/OrganismAI.js';
 import { SpeciesNaming } from '../species/SpeciesNaming.js';
@@ -44,7 +45,9 @@ export class World {
 
     // Priority-based update tracking
     this.organismPriorities = new Map(); // organism -> priority score
+    this.prioritizedOrganisms = [];
     this.lastPriorityUpdate = 0;
+    this.updateCycle = 0;
 
     // Object pooling for food particles
     this.foodPool = new ObjectPool(
@@ -74,6 +77,11 @@ export class World {
     this.speciesFounders = new Map(); // Map of organism ID -> organism (species founders)
     this.speciationEvents = []; // Log of speciation events
     this.speciesNames = new Map(); // Map of founder ID -> {name, code, emoji}
+    this.speciesProfiles = new Map();
+    this.provisionalStrains = new Map();
+    this.nextProvisionalStrainId = 1;
+    this.lastSpeciesProfileUpdate = 0;
+    this.lastProvisionalStrainUpdate = 0;
   }
 
 
@@ -103,30 +111,57 @@ export class World {
   }
 
   /**
+   * Get the circular culture boundary.
+   */
+  getArenaGeometry(padding = 0) {
+    return {
+      centerX: this.width / 2,
+      centerY: this.height / 2,
+      radius: Math.max(0, Math.min(this.width, this.height) / 2 - padding)
+    };
+  }
+
+  /**
+   * Generate a uniformly distributed point inside the culture boundary.
+   */
+  getRandomArenaPosition(padding = 20) {
+    const { centerX, centerY, radius } = this.getArenaGeometry(padding);
+    const angle = Math.random() * Math.PI * 2;
+    const distance = Math.sqrt(Math.random()) * radius;
+
+    return {
+      x: centerX + Math.cos(angle) * distance,
+      y: centerY + Math.sin(angle) * distance
+    };
+  }
+
+  /**
+   * Project a point onto the usable area of the circular culture.
+   */
+  constrainPointToArena(x, y, padding = 0) {
+    const { centerX, centerY, radius } = this.getArenaGeometry(padding);
+    const dx = x - centerX;
+    const dy = y - centerY;
+    const distance = Math.hypot(dx, dy);
+
+    if (distance <= radius || distance === 0) {
+      return { x, y };
+    }
+
+    const scale = radius / distance;
+    return {
+      x: centerX + dx * scale,
+      y: centerY + dy * scale
+    };
+  }
+
+  /**
    * Get grid cell key for position
    */
   getCellKey(x, y) {
     const cellX = Math.floor(x / this.cellSize);
     const cellY = Math.floor(y / this.cellSize);
     return `${cellX},${cellY}`;
-  }
-
-  /**
-   * Get all grid cells within a radius
-   */
-  getCellsInRadius(x, y, radius) {
-    const minCellX = Math.floor((x - radius) / this.cellSize);
-    const maxCellX = Math.floor((x + radius) / this.cellSize);
-    const minCellY = Math.floor((y - radius) / this.cellSize);
-    const maxCellY = Math.floor((y + radius) / this.cellSize);
-
-    const cells = [];
-    for (let cx = minCellX; cx <= maxCellX; cx++) {
-      for (let cy = minCellY; cy <= maxCellY; cy++) {
-        cells.push(`${cx},${cy}`);
-      }
-    }
-    return cells;
   }
 
   /**
@@ -202,17 +237,24 @@ export class World {
       const bounds = this.getSectionBounds(organism._assignedSection);
       organism.x = Math.max(bounds.minX + organism.phenotype.size, Math.min(bounds.maxX - organism.phenotype.size, organism.x));
       organism.y = Math.max(bounds.minY + organism.phenotype.size, Math.min(bounds.maxY - organism.phenotype.size, organism.y));
-    } else {
-      organism.x = Math.max(organism.phenotype.size, Math.min(this.width - organism.phenotype.size, organism.x));
-      organism.y = Math.max(organism.phenotype.size, Math.min(this.height - organism.phenotype.size, organism.y));
     }
+
+    const position = this.constrainPointToArena(
+      organism.x,
+      organism.y,
+      organism.phenotype.size + 8
+    );
+    organism.x = position.x;
+    organism.y = position.y;
 
     this.organisms.push(organism);
     this.addToGrid(organism);
+    this.prioritizedOrganisms = [];
 
     // Track species founders and assign species name
     if (organism.speciesFounderId === organism.id) {
       this.speciesFounders.set(organism.id, organism);
+      this.registerSpeciesProfile(organism);
 
       // Generate species name if not already named
       if (!this.speciesNames.has(organism.id)) {
@@ -225,6 +267,11 @@ export class World {
       // Not a founder - inherit species info from founder
       const speciesInfo = this.getSpeciesName(organism.speciesFounderId);
       organism.setSpeciesInfo(speciesInfo);
+    }
+
+    const profile = this.speciesProfiles.get(organism.speciesFounderId);
+    if (profile) {
+      profile.currentPopulation++;
     }
 
     // Create AI for organism if not player
@@ -242,6 +289,12 @@ export class World {
       this.organisms.splice(index, 1);
       this.removeFromGrid(organism);
       this.organismAIs.delete(organism);
+      this.organismPriorities.delete(organism);
+      this.prioritizedOrganisms = [];
+      const profile = this.speciesProfiles.get(organism.speciesFounderId);
+      if (profile) {
+        profile.currentPopulation = Math.max(0, profile.currentPopulation - 1);
+      }
 
       // Remove from species founders if it was one
       if (organism.speciesFounderId === organism.id) {
@@ -261,6 +314,233 @@ export class World {
 
     // Search all organisms
     return this.organisms.find(org => org.id === id);
+  }
+
+  /**
+   * Store a durable species reference that survives its founder.
+   */
+  registerSpeciesProfile(founder, parentSpeciesId = null) {
+    if (this.speciesProfiles.has(founder.id)) {
+      return this.speciesProfiles.get(founder.id);
+    }
+
+    const reference = PhenotypeComparator.createReference(founder);
+    const profile = {
+      id: founder.id,
+      parentSpeciesId,
+      founderReference: reference,
+      centroidPhenotype: PhenotypeComparator.copyComparablePhenotype(reference.phenotype),
+      currentPopulation: 0,
+      createdAt: this.time
+    };
+
+    this.speciesProfiles.set(founder.id, profile);
+    return profile;
+  }
+
+  /**
+   * Compare against the founder genome and the slowly moving species phenotype.
+   */
+  getSpeciesReference(speciesId) {
+    const profile = this.speciesProfiles.get(speciesId);
+    if (!profile) return null;
+
+    return {
+      genome: profile.founderReference.genome,
+      phenotype: profile.centroidPhenotype
+    };
+  }
+
+  /**
+   * Classify a divergent organism or start a provisional strain.
+   */
+  evaluateSpeciesCandidate(organism) {
+    if (organism.speciesFounderId === organism.id) return false;
+
+    const currentReference = this.getSpeciesReference(organism.speciesFounderId);
+    if (!currentReference) {
+      return false;
+    }
+
+    const currentDivergence = PhenotypeComparator.calculateDivergence(
+      organism,
+      currentReference
+    );
+    if (
+      currentDivergence.combinedScore <
+      PhenotypeComparator.SPECIATION_THRESHOLD
+    ) {
+      organism._provisionalStrainId = null;
+      return false;
+    }
+
+    const nearestSpecies = this.findNearestSpecies(organism, organism.speciesFounderId);
+    if (
+      nearestSpecies &&
+      nearestSpecies.divergence.combinedScore <=
+        PhenotypeComparator.EXISTING_SPECIES_MATCH_THRESHOLD
+    ) {
+      this.assignOrganismToSpecies(organism, nearestSpecies.speciesId);
+      return true;
+    }
+
+    this.createProvisionalStrain(organism, currentDivergence);
+    return true;
+  }
+
+  findNearestSpecies(organism, excludedSpeciesId = null) {
+    let nearest = null;
+
+    for (const [speciesId, profile] of this.speciesProfiles) {
+      if (speciesId === excludedSpeciesId || profile.currentPopulation <= 0) continue;
+
+      const divergence = PhenotypeComparator.calculateDivergence(
+        organism,
+        this.getSpeciesReference(speciesId)
+      );
+      if (!nearest || divergence.combinedScore < nearest.divergence.combinedScore) {
+        nearest = { speciesId, divergence };
+      }
+    }
+
+    return nearest;
+  }
+
+  assignOrganismToSpecies(organism, speciesId) {
+    organism.speciesFounderId = speciesId;
+    organism._cachedSpeciesId = null;
+    organism._provisionalStrainId = null;
+    organism.refreshVisualPhenotype();
+    organism.setSpeciesInfo(this.getSpeciesName(speciesId));
+  }
+
+  createProvisionalStrain(organism, divergence = null) {
+    const strainId = `strain-${this.nextProvisionalStrainId++}`;
+    this.provisionalStrains.set(strainId, {
+      id: strainId,
+      parentSpeciesId: organism.speciesFounderId,
+      founderId: organism.id,
+      reference: PhenotypeComparator.createReference(organism),
+      divergence,
+      firstSeen: this.time,
+      lastSeen: this.time
+    });
+    organism._provisionalStrainId = strainId;
+    return strainId;
+  }
+
+  registerProvisionalOffspring(organism, strainId, mutationOccurred) {
+    const strain = this.provisionalStrains.get(strainId);
+    if (!strain) {
+      organism._provisionalStrainId = null;
+      if (mutationOccurred) {
+        return this.evaluateSpeciesCandidate(organism);
+      }
+      return false;
+    }
+
+    const divergence = PhenotypeComparator.calculateDivergence(
+      organism,
+      strain.reference
+    );
+    if (
+      divergence.combinedScore <
+      PhenotypeComparator.SPECIATION_THRESHOLD
+    ) {
+      strain.lastSeen = this.time;
+      return true;
+    }
+
+    organism._provisionalStrainId = null;
+    return this.evaluateSpeciesCandidate(organism);
+  }
+
+  updateSpeciesProfiles() {
+    const populations = new Map();
+
+    for (const organism of this.organisms) {
+      if (!organism.isAlive) continue;
+      const speciesId = organism.speciesFounderId;
+      if (!populations.has(speciesId)) {
+        populations.set(speciesId, []);
+      }
+      populations.get(speciesId).push(organism);
+    }
+
+    for (const [speciesId, profile] of this.speciesProfiles) {
+      const members = populations.get(speciesId) || [];
+      profile.currentPopulation = members.length;
+      const referenceMembers = members.filter(
+        member => !member._provisionalStrainId
+      );
+
+      if (referenceMembers.length > 0) {
+        const centroid =
+          PhenotypeComparator.calculatePhenotypeCentroid(referenceMembers);
+        profile.centroidPhenotype = PhenotypeComparator.blendPhenotypes(
+          profile.centroidPhenotype,
+          centroid
+        );
+      }
+    }
+  }
+
+  updateProvisionalStrains() {
+    const membersByStrain = new Map();
+
+    for (const organism of this.organisms) {
+      if (!organism.isAlive || !organism._provisionalStrainId) continue;
+      if (!membersByStrain.has(organism._provisionalStrainId)) {
+        membersByStrain.set(organism._provisionalStrainId, []);
+      }
+      membersByStrain.get(organism._provisionalStrainId).push(organism);
+    }
+
+    for (const [strainId, strain] of this.provisionalStrains) {
+      const members = membersByStrain.get(strainId) || [];
+      const age = this.time - strain.firstSeen;
+
+      if (members.length >= 3 || (members.length >= 2 && age >= 6000)) {
+        this.confirmProvisionalStrain(strain, members);
+      } else if (members.length === 0 && age >= 12000) {
+        this.provisionalStrains.delete(strainId);
+      }
+    }
+  }
+
+  confirmProvisionalStrain(strain, members) {
+    const founder =
+      members.find(member => member.id === strain.founderId) ||
+      members.reduce((oldest, member) => member.id < oldest.id ? member : oldest);
+    const newSpeciesId = founder.id;
+
+    for (const member of members) {
+      member.speciesFounderId = newSpeciesId;
+      member._cachedSpeciesId = null;
+      member._provisionalStrainId = null;
+      member.refreshVisualPhenotype();
+    }
+
+    founder._founderPhenotype = founder.phenotype;
+    this.onSpeciationEvent(founder, strain.parentSpeciesId);
+    const profile = this.speciesProfiles.get(newSpeciesId);
+    if (profile) {
+      profile.currentPopulation = members.length;
+    }
+    const parentProfile = this.speciesProfiles.get(strain.parentSpeciesId);
+    if (parentProfile) {
+      parentProfile.currentPopulation = Math.max(
+        0,
+        parentProfile.currentPopulation - members.length
+      );
+    }
+
+    const speciesInfo = this.getSpeciesName(newSpeciesId);
+    for (const member of members) {
+      member.setSpeciesInfo(speciesInfo);
+    }
+
+    this.provisionalStrains.delete(strain.id);
   }
 
   /**
@@ -293,6 +573,7 @@ export class World {
   onSpeciationEvent(newFounder, oldSpeciesId) {
     // Add to founders map
     this.speciesFounders.set(newFounder.id, newFounder);
+    this.registerSpeciesProfile(newFounder, oldSpeciesId);
 
     // Generate species name
     const speciesInfo = this.registerSpeciesName(newFounder);
@@ -336,8 +617,7 @@ export class World {
    */
   spawnRandomFood(count = 1) {
     for (let i = 0; i < count; i++) {
-      const x = Math.random() * this.width;
-      const y = Math.random() * this.height;
+      const { x, y } = this.getRandomArenaPosition(20);
       const energy = 10 + Math.random() * 20;
       this.addFood(x, y, energy);
     }
@@ -355,12 +635,10 @@ export class World {
       const x = centerX + Math.cos(angle) * distance;
       const y = centerY + Math.sin(angle) * distance;
 
-      // Keep within bounds
-      const clampedX = Math.max(20, Math.min(this.width - 20, x));
-      const clampedY = Math.max(20, Math.min(this.height - 20, y));
+      const position = this.constrainPointToArena(x, y, 20);
 
       const energy = 15 + Math.random() * 15;
-      this.addFood(clampedX, clampedY, energy);
+      this.addFood(position.x, position.y, energy);
     }
   }
 
@@ -369,8 +647,7 @@ export class World {
    */
   spawnRandomFoodClusters(clusterCount = 1, foodPerCluster = 5) {
     for (let i = 0; i < clusterCount; i++) {
-      const centerX = Math.random() * this.width;
-      const centerY = Math.random() * this.height;
+      const { x: centerX, y: centerY } = this.getRandomArenaPosition(80);
       this.spawnFoodCluster(centerX, centerY, foodPerCluster);
     }
   }
@@ -406,28 +683,41 @@ export class World {
    */
   updateOrganismPriorities() {
     this.organismPriorities.clear();
+    this.prioritizedOrganisms = [];
 
     for (const organism of this.organisms) {
       if (!organism.isAlive) continue;
       const priority = this.calculateUpdatePriority(organism);
       this.organismPriorities.set(organism, priority);
+      this.prioritizedOrganisms.push(organism);
     }
+
+    this.prioritizedOrganisms.sort((first, second) => {
+      const firstPriority = this.organismPriorities.get(first) || 1;
+      const secondPriority = this.organismPriorities.get(second) || 1;
+      return secondPriority - firstPriority;
+    });
   }
 
   /**
    * Get organisms sorted by update priority
    */
   getPrioritizedOrganisms() {
-    const organisms = Array.from(this.organisms);
+    return this.prioritizedOrganisms.length > 0
+      ? this.prioritizedOrganisms
+      : this.organisms;
+  }
 
-    // Sort by priority (descending)
-    organisms.sort((a, b) => {
-      const priorityA = this.organismPriorities.get(a) || 1;
-      const priorityB = this.organismPriorities.get(b) || 1;
-      return priorityB - priorityA;
-    });
-
-    return organisms;
+  /**
+   * Spread expensive AI decisions across more frames as populations grow.
+   */
+  getAITargetFrames() {
+    const population = this.organisms.length;
+    if (population >= 1200) return 12;
+    if (population >= 700) return 8;
+    if (population >= 350) return 5;
+    if (population >= 150) return 3;
+    return this.targetUpdatesPerFrame;
   }
 
   /**
@@ -437,11 +727,11 @@ export class World {
     if (this.isPaused) return;
 
     this.time += deltaTime;
+    this.updateCycle++;
+    const tempModifiedDelta = deltaTime * this.temperature;
 
     // Update all organisms (physics only)
     for (const organism of this.organisms) {
-      // Apply temperature effect to metabolism
-      const tempModifiedDelta = deltaTime * this.temperature;
       organism.update(tempModifiedDelta);
 
       // Update spatial grid position
@@ -455,7 +745,8 @@ export class World {
     }
 
     // Dynamic batch sizing: aim to update all organisms within targetUpdatesPerFrame frames
-    const dynamicBatchSize = Math.ceil(this.organisms.length / this.targetUpdatesPerFrame);
+    const aiTargetFrames = this.getAITargetFrames();
+    const dynamicBatchSize = Math.ceil(this.organisms.length / aiTargetFrames);
     const batchSize = Math.min(Math.max(20, dynamicBatchSize), this.organisms.length);
 
     // Get prioritized organisms for this frame
@@ -473,10 +764,13 @@ export class World {
 
       const ai = this.organismAIs.get(organism);
       if (ai) {
-        ai.update(deltaTime);
+        const lastAIUpdate = organism._lastAIUpdateTime ?? (this.time - deltaTime);
+        const aiDeltaTime = Math.min(250, Math.max(deltaTime, this.time - lastAIUpdate));
+        organism._lastAIUpdateTime = this.time;
+        ai.update(aiDeltaTime);
 
         // Try to reproduce
-        const offspring = ai.tryReproduce();
+        const offspring = ai.tryReproduce(aiDeltaTime);
         if (offspring) {
           this.addOrganism(offspring);
         }
@@ -486,14 +780,29 @@ export class World {
     // Move to next batch for next frame
     this.currentUpdateIndex = (this.currentUpdateIndex + batchSize) % Math.max(1, prioritizedOrganisms.length);
 
-    // Handle collisions
-    this.handleCollisions();
+    const interactionStride = this.organisms.length >= 800
+      ? 3
+      : this.organisms.length >= 300
+        ? 2
+        : 1;
 
-    // Handle food consumption
-    this.handleFoodConsumption();
+    if (this.updateCycle % interactionStride === 0) {
+      this.handleCollisions();
+      this.handleFoodConsumption();
+    }
 
     // Remove dead organisms
     this.removeDeadOrganisms();
+
+    if (this.time - this.lastProvisionalStrainUpdate >= 500) {
+      this.updateProvisionalStrains();
+      this.lastProvisionalStrainUpdate = this.time;
+    }
+
+    if (this.time - this.lastSpeciesProfileUpdate >= 1000) {
+      this.updateSpeciesProfiles();
+      this.lastSpeciesProfileUpdate = this.time;
+    }
 
     // Keep organisms in bounds
     this.keepOrganismsInBounds();
@@ -524,38 +833,31 @@ export class World {
    * Handle collisions between organisms (optimized with spatial grid)
    */
   handleCollisions() {
-    const checked = new Set(); // Track checked pairs
-
     for (const organism of this.organisms) {
       if (!organism.isAlive) continue;
 
-      // Get nearby organisms from spatial grid
-      const cellKeys = this.getCellsInRadius(organism.x, organism.y, organism.phenotype.size * 3);
+      const searchRadius = organism.phenotype.size * 3;
+      const minCellX = Math.floor((organism.x - searchRadius) / this.cellSize);
+      const maxCellX = Math.floor((organism.x + searchRadius) / this.cellSize);
+      const minCellY = Math.floor((organism.y - searchRadius) / this.cellSize);
+      const maxCellY = Math.floor((organism.y + searchRadius) / this.cellSize);
 
-      for (const key of cellKeys) {
-        const cell = this.grid.get(key);
-        if (!cell) continue;
+      for (let cellX = minCellX; cellX <= maxCellX; cellX++) {
+        for (let cellY = minCellY; cellY <= maxCellY; cellY++) {
+          const cell = this.grid.get(`${cellX},${cellY}`);
+          if (!cell) continue;
 
-        for (const other of cell) {
-          if (other === organism || !other.isAlive) continue;
+          for (const other of cell) {
+            if (!other.isAlive || other.id <= organism.id) continue;
 
-          // Create unique pair ID (smaller ID first)
-          const pairId = organism.id < other.id
-            ? `${organism.id}-${other.id}`
-            : `${other.id}-${organism.id}`;
+            const dx = organism.x - other.x;
+            const dy = organism.y - other.y;
+            const distSq = dx * dx + dy * dy;
+            const minDist = organism.phenotype.size + other.phenotype.size;
 
-          // Skip if already checked this pair
-          if (checked.has(pairId)) continue;
-          checked.add(pairId);
-
-          // Check collision using squared distance (faster)
-          const dx = organism.x - other.x;
-          const dy = organism.y - other.y;
-          const distSq = dx * dx + dy * dy;
-          const minDist = organism.phenotype.size + other.phenotype.size;
-
-          if (distSq < minDist * minDist) {
-            this.resolveCollision(organism, other);
+            if (distSq < minDist * minDist) {
+              this.resolveCollision(organism, other);
+            }
           }
         }
       }
@@ -578,9 +880,6 @@ export class World {
     const ai2 = this.organismAIs.get(org2);
     const org1Attacking = ai1 && ai1.state === 'attacking';
     const org2Attacking = ai2 && ai2.state === 'attacking';
-    const org1Cooperating = ai1 && ai1.state === 'cooperating';
-    const org2Cooperating = ai2 && ai2.state === 'cooperating';
-
     // Check for cooperation first (if same species and no one is attacking)
     if (!org1Attacking && !org2Attacking && org1.isSameSpecies(org2)) {
       // Try cooperation (energy sharing)
@@ -679,31 +978,41 @@ export class World {
     for (const organism of this.organisms) {
       if (!organism.isAlive) continue;
 
-      // Get nearby food from spatial grid
-      const cellKeys = this.getCellsInRadius(organism.x, organism.y, organism.phenotype.size + 20);
+      const searchRadius = organism.phenotype.size + 20;
+      const minCellX = Math.floor((organism.x - searchRadius) / this.cellSize);
+      const maxCellX = Math.floor((organism.x + searchRadius) / this.cellSize);
+      const minCellY = Math.floor((organism.y - searchRadius) / this.cellSize);
+      const maxCellY = Math.floor((organism.y + searchRadius) / this.cellSize);
+      let consumedForOrganism = false;
 
-      for (const key of cellKeys) {
-        const cell = this.foodGrid.get(key);
-        if (!cell) continue;
+      for (
+        let cellX = minCellX;
+        cellX <= maxCellX && !consumedForOrganism;
+        cellX++
+      ) {
+        for (
+          let cellY = minCellY;
+          cellY <= maxCellY && !consumedForOrganism;
+          cellY++
+        ) {
+          const cell = this.foodGrid.get(`${cellX},${cellY}`);
+          if (!cell) continue;
 
-        for (const food of cell) {
-          if (consumedFood.has(food)) continue;
+          for (const food of cell) {
+            if (consumedFood.has(food)) continue;
 
-          // Use squared distance (faster)
-          const dx = organism.x - food.x;
-          const dy = organism.y - food.y;
-          const distSq = dx * dx + dy * dy;
-          const minDist = organism.phenotype.size + food.radius;
+            const dx = organism.x - food.x;
+            const dy = organism.y - food.y;
+            const distSq = dx * dx + dy * dy;
+            const minDist = organism.phenotype.size + food.radius;
 
-          if (distSq < minDist * minDist) {
-            organism.consume(food.energy);
-            consumedFood.add(food);
-            break; // Organism can only eat one food per frame
+            if (distSq < minDist * minDist) {
+              organism.consume(food.energy);
+              consumedFood.add(food);
+              consumedForOrganism = true;
+              break;
+            }
           }
-        }
-
-        if (consumedFood.size > 0 && consumedFood.has([...cell][cell.size - 1])) {
-          break; // Already found food for this organism
         }
       }
     }
@@ -727,10 +1036,26 @@ export class World {
     for (let i = this.organisms.length - 1; i >= 0; i--) {
       const organism = this.organisms[i];
       if (!organism.isAlive && organism !== this.playerOrganism) {
-        // Leave food behind
         this.addFood(organism.x, organism.y, organism.phenotype.size * 5);
+        this.removeFromGrid(organism);
+        this.organismAIs.delete(organism);
+        this.organismPriorities.delete(organism);
+        const profile = this.speciesProfiles.get(organism.speciesFounderId);
+        if (profile) {
+          profile.currentPopulation = Math.max(
+            0,
+            profile.currentPopulation - 1
+          );
+        }
+        if (organism.speciesFounderId === organism.id) {
+          this.speciesFounders.delete(organism.id);
+        }
         this.organisms.splice(i, 1);
       }
+    }
+
+    if (this.prioritizedOrganisms.length !== this.organisms.length) {
+      this.prioritizedOrganisms = [];
     }
   }
 
@@ -760,22 +1085,23 @@ export class World {
           organism.y = bounds.maxY - size;
           organism.vy = -Math.abs(organism.vy) * 0.5;
         }
-      } else {
-        // Normal world bounds
-        if (organism.x < size) {
-          organism.x = size;
-          organism.vx = Math.abs(organism.vx) * 0.5;
-        } else if (organism.x > this.width - size) {
-          organism.x = this.width - size;
-          organism.vx = -Math.abs(organism.vx) * 0.5;
-        }
+      }
 
-        if (organism.y < size) {
-          organism.y = size;
-          organism.vy = Math.abs(organism.vy) * 0.5;
-        } else if (organism.y > this.height - size) {
-          organism.y = this.height - size;
-          organism.vy = -Math.abs(organism.vy) * 0.5;
+      const { centerX, centerY, radius } = this.getArenaGeometry(size + 8);
+      const dx = organism.x - centerX;
+      const dy = organism.y - centerY;
+      const distance = Math.hypot(dx, dy);
+
+      if (distance > radius && distance > 0) {
+        const normalX = dx / distance;
+        const normalY = dy / distance;
+        organism.x = centerX + normalX * radius;
+        organism.y = centerY + normalY * radius;
+
+        const outwardVelocity = organism.vx * normalX + organism.vy * normalY;
+        if (outwardVelocity > 0) {
+          organism.vx -= 1.5 * outwardVelocity * normalX;
+          organism.vy -= 1.5 * outwardVelocity * normalY;
         }
       }
     }
@@ -793,23 +1119,25 @@ export class World {
    */
   getOrganismsNear(x, y, radius) {
     const nearby = [];
-    const cellKeys = this.getCellsInRadius(x, y, radius);
-    const radiusSq = radius * radius; // Use squared distance
+    const radiusSq = radius * radius;
+    const minCellX = Math.floor((x - radius) / this.cellSize);
+    const maxCellX = Math.floor((x + radius) / this.cellSize);
+    const minCellY = Math.floor((y - radius) / this.cellSize);
+    const maxCellY = Math.floor((y + radius) / this.cellSize);
 
-    for (const key of cellKeys) {
-      const cell = this.grid.get(key);
-      if (!cell) continue;
+    for (let cellX = minCellX; cellX <= maxCellX; cellX++) {
+      for (let cellY = minCellY; cellY <= maxCellY; cellY++) {
+        const cell = this.grid.get(`${cellX},${cellY}`);
+        if (!cell) continue;
 
-      for (const org of cell) {
-        if (!org.isAlive) continue;
+        for (const organism of cell) {
+          if (!organism.isAlive) continue;
 
-        // Use squared distance (faster - no sqrt)
-        const dx = org.x - x;
-        const dy = org.y - y;
-        const distSq = dx * dx + dy * dy;
-
-        if (distSq <= radiusSq) {
-          nearby.push(org);
+          const dx = organism.x - x;
+          const dy = organism.y - y;
+          if (dx * dx + dy * dy <= radiusSq) {
+            nearby.push(organism);
+          }
         }
       }
     }
@@ -822,25 +1150,91 @@ export class World {
    */
   getFoodNear(x, y, radius) {
     const nearby = [];
-    const cellKeys = this.getCellsInRadius(x, y, radius);
     const radiusSq = radius * radius;
+    const minCellX = Math.floor((x - radius) / this.cellSize);
+    const maxCellX = Math.floor((x + radius) / this.cellSize);
+    const minCellY = Math.floor((y - radius) / this.cellSize);
+    const maxCellY = Math.floor((y + radius) / this.cellSize);
 
-    for (const key of cellKeys) {
-      const cell = this.foodGrid.get(key);
-      if (!cell) continue;
+    for (let cellX = minCellX; cellX <= maxCellX; cellX++) {
+      for (let cellY = minCellY; cellY <= maxCellY; cellY++) {
+        const cell = this.foodGrid.get(`${cellX},${cellY}`);
+        if (!cell) continue;
 
-      for (const food of cell) {
-        const dx = food.x - x;
-        const dy = food.y - y;
-        const distSq = dx * dx + dy * dy;
-
-        if (distSq <= radiusSq) {
-          nearby.push(food);
+        for (const food of cell) {
+          const dx = food.x - x;
+          const dy = food.y - y;
+          if (dx * dx + dy * dy <= radiusSq) {
+            nearby.push(food);
+          }
         }
       }
     }
 
     return nearby;
+  }
+
+  /**
+   * Get organisms in a rectangular view using the spatial grid.
+   */
+  getOrganismsInArea(left, top, right, bottom) {
+    const organisms = [];
+    const minCellX = Math.floor(left / this.cellSize);
+    const maxCellX = Math.floor(right / this.cellSize);
+    const minCellY = Math.floor(top / this.cellSize);
+    const maxCellY = Math.floor(bottom / this.cellSize);
+
+    for (let cellX = minCellX; cellX <= maxCellX; cellX++) {
+      for (let cellY = minCellY; cellY <= maxCellY; cellY++) {
+        const cell = this.grid.get(`${cellX},${cellY}`);
+        if (!cell) continue;
+
+        for (const organism of cell) {
+          if (
+            organism.isAlive &&
+            organism.x >= left &&
+            organism.x <= right &&
+            organism.y >= top &&
+            organism.y <= bottom
+          ) {
+            organisms.push(organism);
+          }
+        }
+      }
+    }
+
+    return organisms;
+  }
+
+  /**
+   * Get food in a rectangular view using the spatial grid.
+   */
+  getFoodInArea(left, top, right, bottom) {
+    const foodParticles = [];
+    const minCellX = Math.floor(left / this.cellSize);
+    const maxCellX = Math.floor(right / this.cellSize);
+    const minCellY = Math.floor(top / this.cellSize);
+    const maxCellY = Math.floor(bottom / this.cellSize);
+
+    for (let cellX = minCellX; cellX <= maxCellX; cellX++) {
+      for (let cellY = minCellY; cellY <= maxCellY; cellY++) {
+        const cell = this.foodGrid.get(`${cellX},${cellY}`);
+        if (!cell) continue;
+
+        for (const food of cell) {
+          if (
+            food.x >= left &&
+            food.x <= right &&
+            food.y >= top &&
+            food.y <= bottom
+          ) {
+            foodParticles.push(food);
+          }
+        }
+      }
+    }
+
+    return foodParticles;
   }
 
   /**
@@ -874,8 +1268,11 @@ export class World {
 
       for (let i = 0; i < countForSpecies; i++) {
         // Spawn within the assigned section
-        const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
-        const y = bounds.minY + Math.random() * (bounds.maxY - bounds.minY);
+        const candidateX = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
+        const candidateY = bounds.minY + Math.random() * (bounds.maxY - bounds.minY);
+        const position = sections > 1
+          ? this.constrainPointToArena(candidateX, candidateY, 28)
+          : this.getRandomArenaPosition(28);
 
         // Clone base genome so organisms are independent but remain same species
         const genome = baseGenomes[s].clone();
@@ -883,7 +1280,7 @@ export class World {
         // Create organism with founder ID
         // First organism (speciesFounderId=null): becomes its own founder
         // Subsequent organisms: inherit the first organism's ID as founder
-        const organism = new Organism(x, y, genome, null, speciesFounderId);
+        const organism = new Organism(position.x, position.y, genome, null, speciesFounderId);
 
         // Capture the first organism's ID as the species founder
         if (speciesFounderId === null) {
@@ -960,9 +1357,9 @@ export class World {
       // Remove from old grid position
       this.removeFoodFromGrid(food, food.x, food.y);
 
-      // Clamp food position to new world bounds
-      food.x = Math.max(20, Math.min(this.width - 20, food.x));
-      food.y = Math.max(20, Math.min(this.height - 20, food.y));
+      const position = this.constrainPointToArena(food.x, food.y, 20);
+      food.x = position.x;
+      food.y = position.y;
 
       // Add to new grid position
       this.addFoodToGrid(food);
@@ -1084,16 +1481,27 @@ export class World {
     this.foodParticles = [];
     this.grid.clear();
     this.foodGrid.clear();
+    this.organismPriorities.clear();
+    this.prioritizedOrganisms = [];
+    this.currentUpdateIndex = 0;
+    this.lastPriorityUpdate = 0;
+    this.updateCycle = 0;
     this.time = 0;
     this.playerOrganism = null;
     this.statsTracker.clear();
     this.genealogyTracker.clear();
     this.combatKills = 0;
+    this.cooperationEvents = 0;
 
     // Clear species tracking
     this.speciesFounders.clear();
     this.speciationEvents = [];
     this.speciesNames.clear();
+    this.speciesProfiles.clear();
+    this.provisionalStrains.clear();
+    this.nextProvisionalStrainId = 1;
+    this.lastSpeciesProfileUpdate = 0;
+    this.lastProvisionalStrainUpdate = 0;
 
     // Reset organism ID counter for clean restarts
     Organism.nextId = 1;

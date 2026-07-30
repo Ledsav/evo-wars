@@ -1,4 +1,5 @@
 import { Genome } from '../genetics/Genome.js';
+import { VisualPhenotype } from '../../rendering/visual/VisualPhenotype.js';
 import { PhenotypeComparator } from './PhenotypeComparator.js';
 import { TraitCalculator } from './TraitCalculator.js';
 
@@ -45,6 +46,7 @@ export class Organism {
     this._cachedSpeciesId = null; // Cache for getSpeciesId()
     this._founderPhenotype = null; // Will be set after expressing genome
     this._speciesInfo = null; // Cache for species name/emoji (set by World)
+    this._provisionalStrainId = null;
 
     // Express genome to set phenotype
     this.expressGenome();
@@ -63,6 +65,16 @@ export class Organism {
 
     // Calculate phenotype from expressed proteins
     this.phenotype = this.calculatePhenotype(proteins);
+  }
+
+  refreshVisualPhenotype() {
+    const proteins = this.genome.expressAllGenes();
+    this.phenotype.visual = VisualPhenotype.create(
+      this.genome,
+      proteins,
+      this.phenotype,
+      this.speciesFounderId
+    );
   }
 
   /**
@@ -178,6 +190,13 @@ export class Organism {
       const structProtein = proteins.structure;
       phenotype.segments = Math.max(1, Math.min(4, Math.floor(structProtein.properties.length / 4)));
     }
+
+    phenotype.visual = VisualPhenotype.create(
+      this.genome,
+      proteins,
+      phenotype,
+      this.speciesFounderId
+    );
 
     return phenotype;
   }
@@ -346,8 +365,12 @@ export class Organism {
       const randomPosition = Math.floor(Math.random() * sequence.length);
 
       try {
-        childGenome.mutateGene(randomGene, mutationType, randomPosition);
-        mutationOccurred = true;
+        const mutationResult = childGenome.mutateGene(
+          randomGene,
+          mutationType,
+          randomPosition
+        );
+        mutationOccurred = mutationResult.success;
       } catch (error) {
         // Mutation failed, continue without it
         console.log('Mutation failed during reproduction:', error.message);
@@ -375,9 +398,20 @@ export class Organism {
       offspring._assignedSection = this._assignedSection;
     }
 
-    // Check for speciation if mutation occurred and we have world access
-    if (mutationOccurred && world) {
-      offspring.checkSpeciation(world);
+    if (this._provisionalStrainId) {
+      offspring._provisionalStrainId = this._provisionalStrainId;
+    }
+
+    if (world) {
+      if (offspring._provisionalStrainId && world.registerProvisionalOffspring) {
+        world.registerProvisionalOffspring(
+          offspring,
+          offspring._provisionalStrainId,
+          mutationOccurred
+        );
+      } else if (mutationOccurred) {
+        offspring.checkSpeciation(world);
+      }
     }
 
     return offspring;
@@ -431,41 +465,7 @@ export class Organism {
    * Used to determine if organisms are same species
    */
   getGenomeSimilarity(other) {
-    if (!other || !other.genome) return 0;
-
-    const genes1 = this.genome.getGeneNames();
-    const genes2 = other.genome.getGeneNames();
-
-    // Must have same genes to be considered
-    if (genes1.length !== genes2.length) return 0;
-
-    let totalSimilarity = 0;
-    let geneCount = 0;
-
-    for (const geneName of genes1) {
-      const gene1 = this.genome.getGene(geneName);
-      const gene2 = other.genome.getGene(geneName);
-
-      if (!gene1 || !gene2) continue;
-
-      const seq1 = gene1.dna.toString();
-      const seq2 = gene2.dna.toString();
-
-      // Calculate sequence similarity (simple matching)
-      const maxLen = Math.max(seq1.length, seq2.length);
-      const minLen = Math.min(seq1.length, seq2.length);
-      let matches = 0;
-
-      for (let i = 0; i < minLen; i++) {
-        if (seq1[i] === seq2[i]) matches++;
-      }
-
-      const geneSimilarity = matches / maxLen;
-      totalSimilarity += geneSimilarity;
-      geneCount++;
-    }
-
-    return geneCount > 0 ? totalSimilarity / geneCount : 0;
+    return PhenotypeComparator.calculateGenomeSimilarity(this, other);
   }
 
 
@@ -501,6 +501,10 @@ export class Organism {
    * - This mimics bacterial adaptive radiation and ecotype differentiation
    */
   checkSpeciation(world) {
+    if (world?.evaluateSpeciesCandidate) {
+      return world.evaluateSpeciesCandidate(this);
+    }
+
     // Can't speciate if we ARE the founder
     if (this.speciesFounderId === this.id) {
       return false;
@@ -534,6 +538,7 @@ export class Organism {
     const oldSpeciesId = this.speciesFounderId;
     this.speciesFounderId = this.id;
     this._cachedSpeciesId = null; // Clear cache
+    this.refreshVisualPhenotype();
     this._founderPhenotype = this.phenotype; // Cache phenotype for descendants
 
     // Notify world of speciation event
@@ -567,12 +572,14 @@ export class Organism {
       return 0; // We ARE the founder
     }
 
-    const founder = world?.getOrganismById(this.speciesFounderId);
-    if (!founder) {
+    const reference = world?.getSpeciesReference
+      ? world.getSpeciesReference(this.speciesFounderId)
+      : world?.getOrganismById(this.speciesFounderId);
+    if (!reference) {
       return 1.0; // Maximum distance if founder not found
     }
 
-    return PhenotypeComparator.calculateDistance(this, founder);
+    return PhenotypeComparator.calculateDistance(this, reference);
   }
 
   /**

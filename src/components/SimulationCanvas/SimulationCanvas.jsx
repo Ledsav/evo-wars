@@ -1,351 +1,339 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { OrganismRenderer } from '../../rendering/OrganismRenderer';
 
-/**
- * SimulationCanvas - Renders the game world
- */
-export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, highlightedSpeciesId = null, overlays = {} }, ref) => {
-  const canvasRef = useRef(null);
+const MIN_VIEW_SCALE = 1;
+const MAX_VIEW_SCALE = 5;
+const VIEW_SCALE_STEP = 0.25;
 
-  
+function clamp(value, minimum, maximum) {
+  return Math.max(minimum, Math.min(maximum, value));
+}
+
+function getCanvasPoint(canvas, clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+
+  return {
+    x: (clientX - rect.left) * (canvas.width / rect.width),
+    y: (clientY - rect.top) * (canvas.height / rect.height)
+  };
+}
+
+function constrainTransform(transform, width, height) {
+  const scale = clamp(transform.scale, MIN_VIEW_SCALE, MAX_VIEW_SCALE);
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const dishRadius = Math.max(0, Math.min(width, height) / 2 - 8);
+  const maxDisplacement = dishRadius * (scale - 1);
+
+  let displacedCenterX = transform.offsetX + centerX * scale - centerX;
+  let displacedCenterY = transform.offsetY + centerY * scale - centerY;
+  const displacement = Math.hypot(displacedCenterX, displacedCenterY);
+
+  if (displacement > maxDisplacement && displacement > 0) {
+    const correction = maxDisplacement / displacement;
+    displacedCenterX *= correction;
+    displacedCenterY *= correction;
+  }
+
+  return {
+    scale,
+    offsetX: centerX + displacedCenterX - centerX * scale,
+    offsetY: centerY + displacedCenterY - centerY * scale
+  };
+}
+
+function zoomAroundPoint(transform, targetScale, anchor, width, height) {
+  const scale = clamp(targetScale, MIN_VIEW_SCALE, MAX_VIEW_SCALE);
+  const worldX = (anchor.x - transform.offsetX) / transform.scale;
+  const worldY = (anchor.y - transform.offsetY) / transform.scale;
+
+  return constrainTransform({
+    scale,
+    offsetX: anchor.x - worldX * scale,
+    offsetY: anchor.y - worldY * scale
+  }, width, height);
+}
+
+/**
+ * SimulationCanvas - Renders and navigates the circular culture.
+ */
+export const SimulationCanvas = forwardRef(({
+  world,
+  width = 800,
+  height = 600,
+  highlightedSpeciesId = null,
+  overlays = {},
+  onViewScaleChange
+}, ref) => {
+  const canvasRef = useRef(null);
   const [viewTransform, setViewTransform] = useState({
-    scale: 1,
+    scale: MIN_VIEW_SCALE,
     offsetX: 0,
     offsetY: 0
   });
-
-  
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
-
-  
-  const [_touches, setTouches] = useState([]);
   const [lastTouchDistance, setLastTouchDistance] = useState(0);
 
-  
+  const resetView = useCallback(() => {
+    setViewTransform({
+      scale: MIN_VIEW_SCALE,
+      offsetX: 0,
+      offsetY: 0
+    });
+  }, []);
+
+  const zoomBy = useCallback((amount) => {
+    setViewTransform(current => zoomAroundPoint(
+      current,
+      current.scale + amount,
+      { x: width / 2, y: height / 2 },
+      width,
+      height
+    ));
+  }, [height, width]);
+
+  const render = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, width, height);
+
+    OrganismRenderer.renderBackground(ctx, width, height);
+
+    ctx.save();
+    OrganismRenderer.clipToDish(ctx, width, height);
+    ctx.translate(viewTransform.offsetX, viewTransform.offsetY);
+    ctx.scale(viewTransform.scale, viewTransform.scale);
+
+    OrganismRenderer.renderSectionWalls(ctx, world);
+
+    const visibleLeft = -viewTransform.offsetX / viewTransform.scale;
+    const visibleTop = -viewTransform.offsetY / viewTransform.scale;
+    const visibleWidth = width / viewTransform.scale;
+    const visibleHeight = height / viewTransform.scale;
+    const visibleRight = visibleLeft + visibleWidth;
+    const visibleBottom = visibleTop + visibleHeight;
+    const useSpatialRenderQuery = viewTransform.scale > 1.15;
+    const queryPadding = 80 / viewTransform.scale;
+    const foodToRender = useSpatialRenderQuery && world.getFoodInArea
+      ? world.getFoodInArea(
+          visibleLeft - queryPadding,
+          visibleTop - queryPadding,
+          visibleRight + queryPadding,
+          visibleBottom + queryPadding
+        )
+      : world.foodParticles;
+    const organismsToRender = useSpatialRenderQuery && world.getOrganismsInArea
+      ? world.getOrganismsInArea(
+          visibleLeft - queryPadding,
+          visibleTop - queryPadding,
+          visibleRight + queryPadding,
+          visibleBottom + queryPadding
+        )
+      : world.organisms;
+    const population = world.organisms.length;
+    const showOrganismUI = population < 140 || viewTransform.scale >= 1.75;
+    const lodBias = population >= 1000 ? 2 : population >= 500 ? 1.5 : 1;
+
+    for (const food of foodToRender) {
+      if (
+        food.x + food.radius < visibleLeft ||
+        food.x - food.radius > visibleRight ||
+        food.y + food.radius < visibleTop ||
+        food.y - food.radius > visibleBottom
+      ) {
+        continue;
+      }
+      OrganismRenderer.renderFood(ctx, food);
+    }
+
+    for (const organism of organismsToRender) {
+      const size = organism.phenotype?.size || 10;
+      const margin = size + 30;
+
+      if (
+        organism.x + margin < visibleLeft ||
+        organism.x - margin > visibleLeft + visibleWidth ||
+        organism.y + margin < visibleTop ||
+        organism.y - margin > visibleTop + visibleHeight
+      ) {
+        continue;
+      }
+
+      const isHighlighted = highlightedSpeciesId !== null &&
+        organism.getSpeciesId() === highlightedSpeciesId;
+
+      OrganismRenderer.render(
+        ctx,
+        organism,
+        isHighlighted,
+        overlays,
+        {
+          scale: viewTransform.scale,
+          showUI: showOrganismUI,
+          lodBias
+        }
+      );
+    }
+
+    ctx.restore();
+    OrganismRenderer.renderDishFrame(ctx, width, height);
+  }, [height, highlightedSpeciesId, overlays, viewTransform, width, world]);
+
   useImperativeHandle(ref, () => ({
-    render: () => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-
-      const ctx = canvas.getContext('2d');
-
-      
-      ctx.clearRect(0, 0, width, height);
-
-      
-      ctx.save();
-
-      
-      ctx.translate(viewTransform.offsetX, viewTransform.offsetY);
-      ctx.scale(viewTransform.scale, viewTransform.scale);
-
-      
-      OrganismRenderer.renderBackground(ctx, width, height);
-
-      
-      OrganismRenderer.renderSectionWalls(ctx, world);
-
-      
-      const visibleLeft = -viewTransform.offsetX / viewTransform.scale;
-      const visibleTop = -viewTransform.offsetY / viewTransform.scale;
-      const visibleWidth = width / viewTransform.scale;
-      const visibleHeight = height / viewTransform.scale;
-
-      
-      for (const food of world.foodParticles) {
-        
-        if (food.x + food.radius < visibleLeft || food.x - food.radius > visibleLeft + visibleWidth ||
-            food.y + food.radius < visibleTop || food.y - food.radius > visibleTop + visibleHeight) {
-          continue;
-        }
-        OrganismRenderer.renderFood(ctx, food);
-      }
-
-      
-      for (const organism of world.organisms) {
-        const size = organism.phenotype?.size || 10;
-        const margin = size + 30; 
-
-        
-        if (organism.x + margin < visibleLeft || organism.x - margin > visibleLeft + visibleWidth ||
-            organism.y + margin < visibleTop || organism.y - margin > visibleTop + visibleHeight) {
-          continue;
-        }
-
-        const isHighlighted = highlightedSpeciesId !== null &&
-                            organism.getSpeciesId() === highlightedSpeciesId;
-        
-        OrganismRenderer.render(ctx, organism, isHighlighted, overlays || {}, { scale: viewTransform.scale });
-      }
-
-      
-      ctx.restore();
-    },
-    resetView: () => {
-      setViewTransform({
-        scale: 1,
-        offsetX: 0,
-        offsetY: 0
-      });
-    },
+    render,
+    resetView,
+    zoomIn: () => zoomBy(VIEW_SCALE_STEP),
+    zoomOut: () => zoomBy(-VIEW_SCALE_STEP),
     getCanvasElement: () => canvasRef.current
-  }), [world, width, height, highlightedSpeciesId, overlays, viewTransform]);
+  }), [render, resetView, zoomBy]);
 
-  
-  const handleWheel = useCallback((e) => {
-    e.preventDefault();
+  useEffect(() => {
+    onViewScaleChange?.(viewTransform.scale);
+  }, [onViewScaleChange, viewTransform.scale]);
+
+  const handleWheel = useCallback((event) => {
+    event.preventDefault();
 
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-
-    
-    let delta = -e.deltaY;
-
-    
-    if (e.deltaMode === 1) { 
+    let delta = -event.deltaY;
+    if (event.deltaMode === 1) {
       delta *= 33;
-    } else if (e.deltaMode === 2) { 
+    } else if (event.deltaMode === 2) {
       delta *= 100;
     }
 
-    
-    const zoomFactor = 1 + (delta * 0.001);
-    const newScale = Math.max(1, Math.min(5, viewTransform.scale * zoomFactor)); 
+    const anchor = getCanvasPoint(canvas, event.clientX, event.clientY);
+    setViewTransform(current => zoomAroundPoint(
+      current,
+      current.scale * (1 + delta * 0.001),
+      anchor,
+      width,
+      height
+    ));
+  }, [height, width]);
 
-    
-    const worldX = (mouseX - viewTransform.offsetX) / viewTransform.scale;
-    const worldY = (mouseY - viewTransform.offsetY) / viewTransform.scale;
+  const handleMouseDown = (event) => {
+    if (event.button !== 0 || !canvasRef.current) return;
 
-    
-    let newOffsetX = mouseX - worldX * newScale;
-    let newOffsetY = mouseY - worldY * newScale;
-
-    
-    const minOffsetX = width - (width * newScale);
-    const maxOffsetX = 0;
-    const minOffsetY = height - (height * newScale);
-    const maxOffsetY = 0;
-
-    newOffsetX = Math.max(minOffsetX, Math.min(maxOffsetX, newOffsetX));
-    newOffsetY = Math.max(minOffsetY, Math.min(maxOffsetY, newOffsetY));
-
-    setViewTransform({
-      scale: newScale,
-      offsetX: newOffsetX,
-      offsetY: newOffsetY
-    });
-  }, [width, height, viewTransform]);
-
-  
-  const handleMouseDown = (e) => {
-    if (e.button === 0) { 
-      setIsPanning(true);
-      setPanStart({ x: e.clientX, y: e.clientY });
-    }
+    setIsPanning(true);
+    setPanStart(getCanvasPoint(canvasRef.current, event.clientX, event.clientY));
   };
 
-  const handleMouseMove = useCallback((e) => {
-    if (!isPanning) return;
+  const handleMouseMove = useCallback((event) => {
+    const canvas = canvasRef.current;
+    if (!isPanning || !canvas) return;
 
-    const dx = e.clientX - panStart.x;
-    const dy = e.clientY - panStart.y;
+    const point = getCanvasPoint(canvas, event.clientX, event.clientY);
+    const deltaX = point.x - panStart.x;
+    const deltaY = point.y - panStart.y;
 
-    setViewTransform(prev => {
-      const newOffsetX = prev.offsetX + dx;
-      const newOffsetY = prev.offsetY + dy;
-
-      
-      const minOffsetX = width - (width * prev.scale);
-      const maxOffsetX = 0;
-      const minOffsetY = height - (height * prev.scale);
-      const maxOffsetY = 0;
-
-      return {
-        ...prev,
-        offsetX: Math.max(minOffsetX, Math.min(maxOffsetX, newOffsetX)),
-        offsetY: Math.max(minOffsetY, Math.min(maxOffsetY, newOffsetY))
-      };
-    });
-
-    setPanStart({ x: e.clientX, y: e.clientY });
+    setViewTransform(current => constrainTransform({
+      ...current,
+      offsetX: current.offsetX + deltaX,
+      offsetY: current.offsetY + deltaY
+    }, width, height));
+    setPanStart(point);
   }, [height, isPanning, panStart.x, panStart.y, width]);
 
   const handleMouseUp = useCallback(() => {
     setIsPanning(false);
   }, []);
 
-  
-  const handleDoubleClick = () => {
-    setViewTransform({
-      scale: 1,
-      offsetX: 0,
-      offsetY: 0
-    });
+  const getTouchDistance = (firstTouch, secondTouch) => {
+    const deltaX = secondTouch.clientX - firstTouch.clientX;
+    const deltaY = secondTouch.clientY - firstTouch.clientY;
+    return Math.hypot(deltaX, deltaY);
   };
 
-  
-  const getTouchDistance = (touch1, touch2) => {
-    const dx = touch2.clientX - touch1.clientX;
-    const dy = touch2.clientY - touch1.clientY;
-    return Math.sqrt(dx * dx + dy * dy);
-  };
-
-  const getTouchCenter = (touch1, touch2) => {
-    return {
-      x: (touch1.clientX + touch2.clientX) / 2,
-      y: (touch1.clientY + touch2.clientY) / 2
-    };
-  };
-
-  const handleTouchStart = useCallback((e) => {
-    e.preventDefault(); 
-
-    const touchList = Array.from(e.touches);
-    setTouches(touchList);
-
-    if (touchList.length === 1) {
-      
-      setIsPanning(true);
-      setPanStart({ x: touchList[0].clientX, y: touchList[0].clientY });
-    } else if (touchList.length === 2) {
-      
-      setIsPanning(false);
-      const distance = getTouchDistance(touchList[0], touchList[1]);
-      setLastTouchDistance(distance);
-    }
-  }, []);
-
-  const handleTouchMove = useCallback((e) => {
-    e.preventDefault(); 
-
-    const touchList = Array.from(e.touches);
-
-    if (touchList.length === 1 && isPanning) {
-      
-      const dx = touchList[0].clientX - panStart.x;
-      const dy = touchList[0].clientY - panStart.y;
-
-      setViewTransform(prev => {
-        const newOffsetX = prev.offsetX + dx;
-        const newOffsetY = prev.offsetY + dy;
-
-        
-        const minOffsetX = width - (width * prev.scale);
-        const maxOffsetX = 0;
-        const minOffsetY = height - (height * prev.scale);
-        const maxOffsetY = 0;
-
-        return {
-          ...prev,
-          offsetX: Math.max(minOffsetX, Math.min(maxOffsetX, newOffsetX)),
-          offsetY: Math.max(minOffsetY, Math.min(maxOffsetY, newOffsetY))
-        };
-      });
-
-      setPanStart({ x: touchList[0].clientX, y: touchList[0].clientY });
-    } else if (touchList.length === 2) {
-      
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-
-      const rect = canvas.getBoundingClientRect();
-      const distance = getTouchDistance(touchList[0], touchList[1]);
-      const center = getTouchCenter(touchList[0], touchList[1]);
-
-      const centerX = center.x - rect.left;
-      const centerY = center.y - rect.top;
-
-      
-      const zoomFactor = distance / lastTouchDistance;
-      const newScale = Math.max(1, Math.min(5, viewTransform.scale * zoomFactor));
-
-      
-      const worldX = (centerX - viewTransform.offsetX) / viewTransform.scale;
-      const worldY = (centerY - viewTransform.offsetY) / viewTransform.scale;
-
-      
-      let newOffsetX = centerX - worldX * newScale;
-      let newOffsetY = centerY - worldY * newScale;
-
-      
-      const minOffsetX = width - (width * newScale);
-      const maxOffsetX = 0;
-      const minOffsetY = height - (height * newScale);
-      const maxOffsetY = 0;
-
-      newOffsetX = Math.max(minOffsetX, Math.min(maxOffsetX, newOffsetX));
-      newOffsetY = Math.max(minOffsetY, Math.min(maxOffsetY, newOffsetY));
-
-      setViewTransform({
-        scale: newScale,
-        offsetX: newOffsetX,
-        offsetY: newOffsetY
-      });
-
-      setLastTouchDistance(distance);
-    }
-
-    setTouches(touchList);
-  }, [isPanning, panStart, lastTouchDistance, viewTransform, width, height]);
-
-  const handleTouchEnd = useCallback((e) => {
-    e.preventDefault();
-
-    const touchList = Array.from(e.touches);
-    setTouches(touchList);
-
-    if (touchList.length === 0) {
-      
-      setIsPanning(false);
-      setLastTouchDistance(0);
-    } else if (touchList.length === 1) {
-      
-      setIsPanning(true);
-      setPanStart({ x: touchList[0].clientX, y: touchList[0].clientY });
-      setLastTouchDistance(0);
-    }
-  }, []);
-
-  
-  useEffect(() => {
+  const handleTouchStart = useCallback((event) => {
+    event.preventDefault();
+    const touches = Array.from(event.touches);
     const canvas = canvasRef.current;
-    if (!canvas || !ref) return;
+    if (!canvas) return;
 
-    
-    if (ref.current && ref.current.render) {
-      ref.current.render();
+    if (touches.length === 1) {
+      setIsPanning(true);
+      setPanStart(getCanvasPoint(canvas, touches[0].clientX, touches[0].clientY));
+    } else if (touches.length === 2) {
+      setIsPanning(false);
+      setLastTouchDistance(getTouchDistance(touches[0], touches[1]));
     }
-  }, [world, ref]);
+  }, []);
 
-  
+  const handleTouchMove = useCallback((event) => {
+    event.preventDefault();
+    const touches = Array.from(event.touches);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    if (touches.length === 1 && isPanning) {
+      const point = getCanvasPoint(canvas, touches[0].clientX, touches[0].clientY);
+      const deltaX = point.x - panStart.x;
+      const deltaY = point.y - panStart.y;
+
+      setViewTransform(current => constrainTransform({
+        ...current,
+        offsetX: current.offsetX + deltaX,
+        offsetY: current.offsetY + deltaY
+      }, width, height));
+      setPanStart(point);
+    } else if (touches.length === 2 && lastTouchDistance > 0) {
+      const distance = getTouchDistance(touches[0], touches[1]);
+      const centerClientX = (touches[0].clientX + touches[1].clientX) / 2;
+      const centerClientY = (touches[0].clientY + touches[1].clientY) / 2;
+      const anchor = getCanvasPoint(canvas, centerClientX, centerClientY);
+      const zoomFactor = distance / lastTouchDistance;
+
+      setViewTransform(current => zoomAroundPoint(
+        current,
+        current.scale * zoomFactor,
+        anchor,
+        width,
+        height
+      ));
+      setLastTouchDistance(distance);
+    }
+  }, [height, isPanning, lastTouchDistance, panStart.x, panStart.y, width]);
+
+  const handleTouchEnd = useCallback((event) => {
+    event.preventDefault();
+    const touches = Array.from(event.touches);
+    const canvas = canvasRef.current;
+
+    if (touches.length === 0) {
+      setIsPanning(false);
+      setLastTouchDistance(0);
+    } else if (touches.length === 1 && canvas) {
+      setIsPanning(true);
+      setPanStart(getCanvasPoint(canvas, touches[0].clientX, touches[0].clientY));
+      setLastTouchDistance(0);
+    }
+  }, []);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     canvas.addEventListener('wheel', handleWheel, { passive: false });
-    return () => {
-      canvas.removeEventListener('wheel', handleWheel);
-    };
+    return () => canvas.removeEventListener('wheel', handleWheel);
   }, [handleWheel]);
 
-  
   useEffect(() => {
-    if (isPanning) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-      return () => {
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
-      };
-    }
+    if (!isPanning) return;
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
   }, [handleMouseMove, handleMouseUp, isPanning]);
 
-  
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -361,7 +349,7 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
       canvas.removeEventListener('touchend', handleTouchEnd);
       canvas.removeEventListener('touchcancel', handleTouchEnd);
     };
-  }, [handleTouchStart, handleTouchMove, handleTouchEnd]);
+  }, [handleTouchEnd, handleTouchMove, handleTouchStart]);
 
   return (
     <canvas
@@ -369,19 +357,15 @@ export const SimulationCanvas = forwardRef(({ world, width = 800, height = 600, 
       width={width}
       height={height}
       onMouseDown={handleMouseDown}
-      onDoubleClick={handleDoubleClick}
+      onDoubleClick={resetView}
+      className={`simulation-canvas ${isPanning ? 'is-panning' : ''}`}
       style={{
-        border: '2px solid #4a5568',
-        borderRadius: '8px',
-        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
-        backgroundColor: '#0a1929',
         display: 'block',
         maxWidth: '100%',
         maxHeight: '100%',
         objectFit: 'contain',
-        cursor: isPanning ? 'grabbing' : 'grab',
-        touchAction: 'none', 
-        WebkitUserSelect: 'none', 
+        touchAction: 'none',
+        WebkitUserSelect: 'none',
         userSelect: 'none'
       }}
     />
