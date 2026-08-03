@@ -17,6 +17,7 @@ export class GameEngine {
     this.maxUpdatesPerFrame = 5;
     this.lastRenderTime = 0;
     this.animationFrameId = null;
+    this.isFastForwarding = false;
     this.boundLoop = this.loop.bind(this);
     this.boundVisibilityChange = this.handleVisibilityChange.bind(this);
 
@@ -61,6 +62,13 @@ export class GameEngine {
    */
   loop(currentTime = performance.now()) {
     if (!this.isRunning) return;
+
+    if (this.isFastForwarding) {
+      this.lastTime = currentTime;
+      this.accumulator = 0;
+      this.animationFrameId = requestAnimationFrame(this.boundLoop);
+      return;
+    }
 
     if (typeof document !== 'undefined' && document.hidden) {
       this.lastTime = currentTime;
@@ -168,5 +176,48 @@ export class GameEngine {
    */
   getSimulationSpeed() {
     return this.simulationSpeed;
+  }
+
+  async fastForwardDays(days, options = {}) {
+    if (this.isFastForwarding) return null;
+
+    const dayCount = Math.max(1, Math.min(1000, Math.floor(days)));
+    const epochsPerDay = 24;
+    const epochCount = dayCount * epochsPerDay;
+    const calendarDelta = 86400000 / epochsPerDay;
+    const dynamicsDelta = 250;
+    this.isFastForwarding = true;
+
+    try {
+      for (let epoch = 0; epoch < epochCount; epoch++) {
+        const recordStats =
+          (epoch + 1) % epochsPerDay === 0 ||
+          epoch === epochCount - 1;
+        this.world.update(dynamicsDelta, {
+          force: true,
+          offline: true,
+          calendarDelta,
+          recordStats
+        });
+
+        if (recordStats) {
+          options.onProgress?.((epoch + 1) / epochCount);
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+      }
+
+      this.onUpdate?.(0, { forceUI: true, offline: true });
+      this.render();
+      return {
+        days: dayCount,
+        epochs: epochCount,
+        stats: this.world.getStats()
+      };
+    } finally {
+      this.isFastForwarding = false;
+      this.lastTime = performance.now();
+      this.lastRenderTime = this.lastTime;
+      this.accumulator = 0;
+    }
   }
 }

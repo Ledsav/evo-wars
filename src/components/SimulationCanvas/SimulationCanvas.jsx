@@ -1,4 +1,5 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { ColonyRenderer } from '../../rendering/ColonyRenderer';
 import { OrganismRenderer } from '../../rendering/OrganismRenderer';
 
 const MIN_VIEW_SCALE = 1;
@@ -136,6 +137,25 @@ export const SimulationCanvas = forwardRef(({
     const population = world.organisms.length;
     const showOrganismUI = population < 140 || viewTransform.scale >= 1.75;
     const lodBias = population >= 1000 ? 2 : population >= 500 ? 1.5 : 1;
+    const colonyRenderOptions = {
+      scale: viewTransform.scale,
+      lodBias,
+      population,
+      showUI: showOrganismUI,
+      worldTime: world.time
+    };
+    const aggregateColonyIds = new Set();
+    const aggregatedMemberIds = new Set();
+    const colonies = world.colonyManager?.getColonies?.() || [];
+
+    for (const colony of colonies) {
+      if (ColonyRenderer.shouldRenderAsAggregate(colony, colonyRenderOptions)) {
+        aggregateColonyIds.add(colony.id);
+        for (const member of colony.members) {
+          aggregatedMemberIds.add(member.id);
+        }
+      }
+    }
 
     for (const food of foodToRender) {
       if (
@@ -149,7 +169,27 @@ export const SimulationCanvas = forwardRef(({
       OrganismRenderer.renderFood(ctx, food);
     }
 
+    for (const bond of world.colonyManager?.getBonds?.() || []) {
+      const colony = world.colonyManager.getColonyForOrganism(bond.first);
+      if (!colony || aggregateColonyIds.has(colony.id)) continue;
+      ColonyRenderer.renderBond(ctx, bond, colonyRenderOptions);
+    }
+
+    for (const colony of colonies) {
+      if (!aggregateColonyIds.has(colony.id)) continue;
+      const isHighlighted = highlightedSpeciesId !== null &&
+        colony.speciesId === highlightedSpeciesId;
+      ColonyRenderer.renderAggregate(
+        ctx,
+        colony,
+        isHighlighted,
+        colonyRenderOptions
+      );
+    }
+
     for (const organism of organismsToRender) {
+      if (aggregatedMemberIds.has(organism.id)) continue;
+
       const size = organism.phenotype?.size || 10;
       const margin = size + 30;
 

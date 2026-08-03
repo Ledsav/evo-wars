@@ -1440,7 +1440,7 @@ body {
 
 /* Simulation Controls Bar */
 .simulation-controls {
-  border-radius: 16px;
+  border-radius: var(--lab-radius);
   padding: 10px 15px;
   margin: 10px;
   display: flex;

@@ -3,6 +3,7 @@ import { Organism } from '../../core/organisms/Organism.js';
 import { PhenotypeComparator } from '../../core/organisms/PhenotypeComparator.js';
 import { ObjectPool } from '../../engine/performance/ObjectPool.js';
 import { OrganismAI } from '../ai/OrganismAI.js';
+import { ColonyManager } from '../colonies/ColonyManager.js';
 import { SpeciesNaming } from '../species/SpeciesNaming.js';
 import { GenealogyTracker } from '../tracking/GenealogyTracker.js';
 import { StatisticsTracker } from '../tracking/StatisticsTracker.js';
@@ -72,6 +73,7 @@ export class World {
 
     // Cooperation statistics
     this.cooperationEvents = 0;
+    this.colonyManager = new ColonyManager();
 
     // Species tracking for phylotype-based speciation
     this.speciesFounders = new Map(); // Map of organism ID -> organism (species founders)
@@ -278,6 +280,13 @@ export class World {
     if (!organism.isPlayer) {
       this.organismAIs.set(organism, new OrganismAI(organism, this));
     }
+
+    const parent = organism.parentId !== null
+      ? this.getOrganismById(organism.parentId)
+      : null;
+    if (parent?.isAlive && parent.isSameSpecies(organism)) {
+      this.colonyManager.integrateOffspring(parent, organism, this.time);
+    }
   }
 
   /**
@@ -291,6 +300,7 @@ export class World {
       this.organismAIs.delete(organism);
       this.organismPriorities.delete(organism);
       this.prioritizedOrganisms = [];
+      this.colonyManager.removeOrganism(organism);
       const profile = this.speciesProfiles.get(organism.speciesFounderId);
       if (profile) {
         profile.currentPopulation = Math.max(0, profile.currentPopulation - 1);
@@ -521,7 +531,7 @@ export class World {
       member.refreshVisualPhenotype();
     }
 
-    founder._founderPhenotype = founder.phenotype;
+    founder._founderPhenotype = founder.basePhenotype || founder.phenotype;
     this.onSpeciationEvent(founder, strain.parentSpeciesId);
     const profile = this.speciesProfiles.get(newSpeciesId);
     if (profile) {
@@ -723,10 +733,10 @@ export class World {
   /**
    * Update world (called each frame)
    */
-  update(deltaTime) {
-    if (this.isPaused) return;
+  update(deltaTime, options = {}) {
+    if (this.isPaused && !options.force) return;
 
-    this.time += deltaTime;
+    this.time += options.calendarDelta ?? deltaTime;
     this.updateCycle++;
     const tempModifiedDelta = deltaTime * this.temperature;
 
@@ -737,6 +747,8 @@ export class World {
       // Update spatial grid position
       this.updateGrid(organism);
     }
+
+    this.colonyManager.update(tempModifiedDelta, this.time);
 
     // Update priorities every 500ms
     if (this.time - this.lastPriorityUpdate > 500) {
@@ -822,11 +834,10 @@ export class World {
       }
     }
 
-    // Collect statistics
-    this.statsTracker.collectStats(this);
-
-    // Update genealogy tracking
-    this.genealogyTracker.update(this);
+    if (!options.offline || options.recordStats) {
+      this.statsTracker.collectStats(this, options.offline === true);
+      this.genealogyTracker.update(this, options.offline === true);
+    }
   }
 
   /**
@@ -870,6 +881,7 @@ export class World {
   resolveCollision(org1, org2) {
     // Check if parent-child relationship exists
     if (org1.isParentChildRelation(org2)) {
+      this.colonyManager.tryCreateBond(org1, org2, this.time);
       // Just push apart, no combat
       this.pushOrganismsApart(org1, org2);
       return;
@@ -882,12 +894,13 @@ export class World {
     const org2Attacking = ai2 && ai2.state === 'attacking';
     // Check for cooperation first (if same species and no one is attacking)
     if (!org1Attacking && !org2Attacking && org1.isSameSpecies(org2)) {
-      // Try cooperation (energy sharing)
-      const cooperated1 = org1.cooperateWith(org2);
-      const cooperated2 = org2.cooperateWith(org1);
+      const createdBond = this.colonyManager.tryCreateBond(org1, org2, this.time);
+      const bonded = createdBond || this.colonyManager.hasBond(org1, org2);
+      const cooperated1 = bonded ? false : org1.cooperateWith(org2);
+      const cooperated2 = bonded ? false : org2.cooperateWith(org1);
 
       // Track cooperation for visual feedback
-      if (cooperated1 || cooperated2) {
+      if (createdBond || cooperated1 || cooperated2) {
         org1._lastCooperation = Date.now();
         org2._lastCooperation = Date.now();
         this.cooperationEvents++; // Increment cooperation counter
@@ -1040,6 +1053,7 @@ export class World {
         this.removeFromGrid(organism);
         this.organismAIs.delete(organism);
         this.organismPriorities.delete(organism);
+        this.colonyManager.removeOrganism(organism);
         const profile = this.speciesProfiles.get(organism.speciesFounderId);
         if (profile) {
           profile.currentPopulation = Math.max(
@@ -1492,6 +1506,7 @@ export class World {
     this.genealogyTracker.clear();
     this.combatKills = 0;
     this.cooperationEvents = 0;
+    this.colonyManager.clear();
 
     // Clear species tracking
     this.speciesFounders.clear();
@@ -1512,6 +1527,7 @@ export class World {
    */
   getStats() {
     const alive = this.getAliveOrganisms();
+    const colonyStats = this.colonyManager.getStats();
     return {
       totalOrganisms: this.organisms.length,
       aliveOrganisms: alive.length,
@@ -1519,7 +1535,8 @@ export class World {
       worldTime: this.time.toFixed(1),
       averageEnergy: alive.length > 0
         ? (alive.reduce((sum, org) => sum + org.energy, 0) / alive.length).toFixed(1)
-        : 0
+        : 0,
+      ...colonyStats
     };
   }
 }

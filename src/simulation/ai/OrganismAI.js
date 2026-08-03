@@ -456,10 +456,7 @@ export class OrganismAI {
           }
         }
 
-        // Very cooperative organisms don't attack same species
-        if (this.organism.phenotype.cooperativeness > 0.7) {
-          continue;
-        }
+        continue;
       }
 
       // Different species - evaluate threat

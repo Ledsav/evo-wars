@@ -1,3 +1,4 @@
+import { CELL_ROLE_DEFINITIONS } from '../core/organisms/CellSpecialization.js';
 import { VisualPhenotypeRenderer } from './visual/VisualPhenotypeRenderer.js';
 
 /**
@@ -210,12 +211,14 @@ export class OrganismRenderer {
     // Use simple rendering for distant/small organisms
     if (lod === 'simple') {
       this.renderSimple(ctx, organism);
+      this.renderCellRoleMarker(ctx, organism, size);
       ctx.restore();
       return;
     }
 
     if (lod === 'medium') {
       this.renderMedium(ctx, organism);
+      this.renderCellRoleMarker(ctx, organism, size);
       ctx.restore();
       // Still show energy bar for medium LOD
       if (options.showUI !== false) {
@@ -248,6 +251,7 @@ export class OrganismRenderer {
     const cached = this.getCachedRender(organism);
     const halfSize = cached.size / 2;
     ctx.drawImage(cached.canvas, -halfSize, -halfSize);
+    this.renderCellRoleMarker(ctx, organism, size);
 
     // Speed trail overlay (optional visualization) - dynamic overlay
     if (overlays.showSpeed) {
@@ -279,6 +283,31 @@ export class OrganismRenderer {
 
     // Non-tangible overlays (drawn in world space, not rotated)
     this.renderOverlays(ctx, organism, overlays);
+  }
+
+  static renderCellRoleMarker(ctx, organism, size) {
+    const role = organism.getExpressedCellRole?.() || 'generalist';
+    const expression = organism.roleExpression || 0;
+    if (role === 'generalist' || expression < 0.25) return;
+
+    const roleDefinition = CELL_ROLE_DEFINITIONS[role];
+    if (!roleDefinition) return;
+
+    ctx.save();
+    ctx.globalAlpha = 0.35 + expression * 0.55;
+    ctx.strokeStyle = roleDefinition.color;
+    ctx.lineWidth = 1.2 + expression * 0.8;
+    ctx.setLineDash([2.5, 2]);
+    ctx.beginPath();
+    ctx.arc(0, 0, size + 2.5, -Math.PI / 2, Math.PI * 1.5);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = roleDefinition.color;
+    ctx.beginPath();
+    ctx.arc(0, -size - 2.5, 1.8 + expression, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
 
   // ===========================

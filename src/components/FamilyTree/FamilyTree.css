@@ -119,6 +119,18 @@
   border-color: var(--lab-line-strong);
 }
 
+.legend-icon.role-node {
+  background: conic-gradient(
+    #8b6f83 0 20%,
+    #a18448 20% 40%,
+    #a54a3f 40% 60%,
+    #687f91 60% 80%,
+    #4f8177 80% 100%
+  );
+  border-color: var(--lab-surface-raised);
+  box-shadow: 0 0 0 1px var(--lab-line-strong);
+}
+
 .legend-badge {
   width: 24px;
   height: 24px;

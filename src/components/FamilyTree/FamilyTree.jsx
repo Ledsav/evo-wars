@@ -1,9 +1,39 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNotifications } from '../../context/useNotifications';
+import {
+  CELL_ROLE_DEFINITIONS,
+  SPECIALIZED_CELL_ROLES
+} from '../../core/organisms/CellSpecialization';
 import { OrganismRenderer } from '../../rendering/OrganismRenderer';
 import { ScreenShotIcon } from '../shared/Icons/Icons';
 import './FamilyTree.css';
+
+function drawRoleComposition(ctx, node, x, y, radius) {
+  if (!node.cellRoles || node.specializedPopulation <= 0) return;
+
+  const total = Object.values(node.cellRoles).reduce(
+    (sum, count) => sum + count,
+    0
+  );
+  if (total <= 0) return;
+
+  let startAngle = -Math.PI / 2;
+  ctx.save();
+  ctx.lineWidth = 3;
+  for (const role of SPECIALIZED_CELL_ROLES) {
+    const count = node.cellRoles[role] || 0;
+    if (count <= 0) continue;
+
+    const endAngle = startAngle + (count / total) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.strokeStyle = CELL_ROLE_DEFINITIONS[role].color;
+    ctx.arc(x, y, radius + 4, startAngle, endAngle);
+    ctx.stroke();
+    startAngle = endAngle;
+  }
+  ctx.restore();
+}
 
 /**
  * FamilyTreeCanvas - Reusable canvas component for rendering the tree
@@ -129,6 +159,9 @@ function FamilyTreeCanvas({ genealogyTracker, width, height, onHoverChange, isMa
         ctx.fill();
         ctx.lineWidth = isHovered ? (node.extinct ? 2 : 4) : (node.extinct ? 1 : 2);
         ctx.stroke();
+        if (!node.extinct) {
+          drawRoleComposition(ctx, node, x, y, currentNodeRadius);
+        }
 
         
         if (node.representative && !node.extinct) {
@@ -359,6 +392,14 @@ function FamilyTreePopup({ genealogyTracker, onClose }) {
             <span className="stat-label">Tree Depth:</span>
             <span className="stat-value">{stats.maxDepth}</span>
           </div>
+          <div className="stat-item">
+            <span className="stat-label">Multicellular:</span>
+            <span className="stat-value alive">{stats.multicellularSpecies}</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-label">Specialized:</span>
+            <span className="stat-value alive">{stats.specializedSpecies}</span>
+          </div>
         </div>
 
         {/* Legend */}
@@ -374,6 +415,10 @@ function FamilyTreePopup({ genealogyTracker, onClose }) {
           <div className="legend-item">
             <div className="legend-badge">42</div>
             <span>Current Population</span>
+          </div>
+          <div className="legend-item">
+            <div className="legend-icon role-node"></div>
+            <span>Specialized Cell Roles</span>
           </div>
         </div>
 
@@ -494,6 +539,14 @@ export function FamilyTree({ genealogyTracker }) {
           <span className="stat-label">Tree Depth:</span>
           <span className="stat-value">{stats.maxDepth}</span>
         </div>
+        <div className="stat-item">
+          <span className="stat-label">Multicellular:</span>
+          <span className="stat-value alive">{stats.multicellularSpecies}</span>
+        </div>
+        <div className="stat-item">
+          <span className="stat-label">Specialized:</span>
+          <span className="stat-value alive">{stats.specializedSpecies}</span>
+        </div>
       </div>
 
       {/* Legend */}
@@ -509,6 +562,10 @@ export function FamilyTree({ genealogyTracker }) {
         <div className="legend-item">
           <div className="legend-badge">42</div>
           <span>Current Population</span>
+        </div>
+        <div className="legend-item">
+          <div className="legend-icon role-node"></div>
+          <span>Specialized Cell Roles</span>
         </div>
       </div>
 
@@ -557,7 +614,7 @@ export function FamilyTree({ genealogyTracker }) {
 function drawHoverInfo(ctx, node, x, y, nodeRadius, canvasWidth, canvasHeight) {
   const padding = 10;
   const lineHeight = 16;
-  const tooltipWidth = 200;
+  const tooltipWidth = 250;
 
   
   let info;
@@ -587,6 +644,25 @@ function drawHoverInfo(ctx, node, x, y, nodeRadius, canvasWidth, canvasHeight) {
       `Max Pop: ${node.maxPopulation}`,
       `Status: ${node.extinct ? 'Extinct' : 'Alive'}`,
     ];
+
+    if (!node.extinct) {
+      info.push(
+        `Multicellular: ${Math.round((node.multicellularFraction || 0) * 100)}% · ${node.colonyCount || 0} colonies`,
+        `Specialized: ${Math.round((node.specializationFraction || 0) * 100)}%`
+      );
+      const roleSummary = SPECIALIZED_CELL_ROLES
+        .filter(role => (node.cellRoles?.[role] || 0) > 0)
+        .map(role => (
+          `${CELL_ROLE_DEFINITIONS[role].label} ${node.cellRoles[role]}`
+        ));
+      for (let index = 0; index < roleSummary.length; index += 2) {
+        info.push(
+          `${index === 0 ? 'Roles' : 'Roles+'}: ${roleSummary
+            .slice(index, index + 2)
+            .join(' · ')}`
+        );
+      }
+    }
 
     if (node.extinct && node.extinctTime) {
       const timeAlive = ((node.extinctTime - node.firstSeen) / 1000).toFixed(0);

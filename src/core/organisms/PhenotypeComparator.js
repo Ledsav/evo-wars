@@ -31,6 +31,7 @@ export class PhenotypeComparator {
     // Secondary traits (lower weight)
     energyEfficiency: 0.8,
     acceleration: 0.5,
+    adhesion: 0.8,
 
     // Visual traits (lowest weight - less ecologically significant)
     colorHue: 0.3,
@@ -52,6 +53,7 @@ export class PhenotypeComparator {
     reproductionThreshold: { min: 70, max: 100 },
     energyEfficiency: { min: 1, max: 3 },
     acceleration: { min: 0.1, max: 0.3 },
+    adhesion: { min: 0, max: 1 },
     colorHue: { min: 0, max: 360 },
     colorSaturation: { min: 0, max: 100 },
     colorLightness: { min: 0, max: 100 }
@@ -66,12 +68,11 @@ export class PhenotypeComparator {
    * @returns {number} Phenotypic distance (0-1+)
    */
   static calculateDistance(organism1, organism2) {
-    if (!organism1?.phenotype || !organism2?.phenotype) {
+    const pheno1 = this.getComparablePhenotype(organism1);
+    const pheno2 = this.getComparablePhenotype(organism2);
+    if (!pheno1 || !pheno2) {
       return 1.0; // Maximum distance if phenotype missing
     }
-
-    const pheno1 = organism1.phenotype;
-    const pheno2 = organism2.phenotype;
 
     let totalWeightedDistance = 0;
     let totalWeight = 0;
@@ -150,11 +151,22 @@ export class PhenotypeComparator {
       const seq1 = gene1.dna.toString();
       const seq2 = gene2.dna.toString();
       const geneWeight = Math.max(seq1.length, seq2.length, 1);
-      totalSimilarity += this.calculateSequenceSimilarity(seq1, seq2) * geneWeight;
+      const sequenceSimilarity = this.calculateSequenceSimilarity(seq1, seq2);
+      const stabilitySimilarity = 1 - Math.min(
+        1,
+        Math.abs((gene1.stability || 0.5) - (gene2.stability || 0.5))
+      );
+      totalSimilarity += (
+        sequenceSimilarity * 0.92 + stabilitySimilarity * 0.08
+      ) * geneWeight;
       totalWeight += geneWeight;
     }
 
     return totalWeight > 0 ? totalSimilarity / totalWeight : 0;
+  }
+
+  static getComparablePhenotype(organism) {
+    return organism?.basePhenotype || organism?.phenotype || null;
   }
 
   /**
@@ -200,7 +212,7 @@ export class PhenotypeComparator {
   static createReference(organism) {
     return {
       genome: organism.genome.clone(),
-      phenotype: this.copyComparablePhenotype(organism.phenotype)
+      phenotype: this.copyComparablePhenotype(this.getComparablePhenotype(organism))
     };
   }
 
@@ -233,17 +245,18 @@ export class PhenotypeComparator {
     let hueY = 0;
 
     for (const organism of organisms) {
+      const phenotype = this.getComparablePhenotype(organism);
       for (const trait of Object.keys(this.TRAIT_WEIGHTS)) {
         if (!trait.startsWith('color')) {
-          centroid[trait] = (centroid[trait] || 0) + (organism.phenotype[trait] || 0);
+          centroid[trait] = (centroid[trait] || 0) + (phenotype[trait] || 0);
         }
       }
 
-      const hueRadians = ((organism.phenotype.color?.h || 0) * Math.PI) / 180;
+      const hueRadians = ((phenotype.color?.h || 0) * Math.PI) / 180;
       hueX += Math.cos(hueRadians);
       hueY += Math.sin(hueRadians);
-      centroid.color.s += organism.phenotype.color?.s || 0;
-      centroid.color.l += organism.phenotype.color?.l || 0;
+      centroid.color.s += phenotype.color?.s || 0;
+      centroid.color.l += phenotype.color?.l || 0;
     }
 
     for (const trait of Object.keys(this.TRAIT_WEIGHTS)) {
@@ -325,16 +338,18 @@ export class PhenotypeComparator {
       divergence.combinedScore >= this.SPECIATION_THRESHOLD;
 
     const traitDifferences = {};
+    const phenotype1 = this.getComparablePhenotype(organism1);
+    const phenotype2 = this.getComparablePhenotype(organism2);
     for (const trait of Object.keys(this.TRAIT_WEIGHTS)) {
       let value1, value2;
 
       if (trait.startsWith('color')) {
         const colorProp = trait.replace('color', '').toLowerCase();
-        value1 = organism1.phenotype.color?.[colorProp[0]] || 0;
-        value2 = organism2.phenotype.color?.[colorProp[0]] || 0;
+        value1 = phenotype1.color?.[colorProp[0]] || 0;
+        value2 = phenotype2.color?.[colorProp[0]] || 0;
       } else {
-        value1 = organism1.phenotype[trait] || 0;
-        value2 = organism2.phenotype[trait] || 0;
+        value1 = phenotype1[trait] || 0;
+        value2 = phenotype2[trait] || 0;
       }
 
       traitDifferences[trait] = {

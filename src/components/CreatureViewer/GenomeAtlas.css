@@ -37,7 +37,7 @@
 
 .genome-summary-strip {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   border: 1px solid var(--lab-line);
   border-radius: var(--lab-radius-small);
   background: var(--lab-surface-raised);
@@ -249,6 +249,15 @@
   font-size: 9px;
 }
 
+.locus-length {
+  text-align: right;
+}
+
+.locus-length small {
+  margin-top: 2px;
+  font-size: 8px;
+}
+
 .locus-index-item strong,
 .locus-index-item small {
   display: block;
@@ -311,17 +320,144 @@
   border-color: color-mix(in srgb, var(--lab-danger) 50%, var(--lab-line));
 }
 
+.gene-statuses .neutral {
+  color: var(--lab-ink-soft);
+  background: var(--lab-surface-sunken);
+  border-color: var(--lab-line-strong);
+}
+
 .locus-measurements {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   background: var(--lab-surface-sunken);
   border: 1px solid var(--lab-line);
   border-radius: var(--lab-radius-small);
 }
 
+.sequence-qc-grid {
+  display: grid;
+  grid-template-columns: minmax(250px, 0.8fr) minmax(0, 1.2fr);
+  gap: 10px;
+}
+
+.base-composition-panel,
+.reading-frame-panel {
+  min-width: 0;
+  padding: 12px;
+  background: var(--lab-surface);
+  border: 1px solid var(--lab-line);
+  border-radius: var(--lab-radius-small);
+}
+
+.base-composition-list,
+.reading-frame-list {
+  margin-top: 10px;
+  display: grid;
+  gap: 7px;
+}
+
+.base-composition-row {
+  display: grid;
+  grid-template-columns: 16px minmax(60px, 1fr) 76px;
+  align-items: center;
+  gap: 8px;
+}
+
+.base-composition-row > strong,
+.base-composition-row > span,
+.reading-frame-heading > span,
+.reading-frame-row > strong {
+  font-family: var(--lab-font-mono);
+  font-size: 9px;
+}
+
+.base-composition-row > strong {
+  font-size: 11px;
+}
+
+.base-composition-row > span {
+  color: var(--lab-ink-muted);
+  text-align: right;
+}
+
+.base-composition-row > div,
+.output-meter {
+  height: 7px;
+  overflow: hidden;
+  background: var(--lab-surface-sunken);
+  border: 1px solid var(--lab-line);
+}
+
+.base-composition-row i,
+.output-meter i {
+  height: 100%;
+  display: block;
+}
+
+.reading-frame-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.reading-frame-heading > span {
+  color: var(--lab-ink-muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.reading-frame-list {
+  overflow-x: auto;
+}
+
+.reading-frame-row {
+  min-width: max-content;
+  display: grid;
+  grid-template-columns: 22px auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.reading-frame-row > strong {
+  color: var(--lab-ink-muted);
+}
+
+.reading-frame-row > div {
+  display: flex;
+  gap: 3px;
+}
+
+.frame-codon {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  color: var(--lab-ink-soft);
+  background: var(--lab-surface-raised);
+  border: 1px solid var(--lab-line);
+  border-radius: 2px;
+  font-family: var(--lab-font-mono);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.frame-codon.start {
+  color: var(--lab-accent-deep);
+  background: var(--lab-accent-soft);
+  border-color: var(--lab-accent);
+}
+
+.frame-codon.stop {
+  color: var(--lab-danger);
+  background: var(--lab-danger-soft);
+  border-color: var(--lab-danger);
+}
+
 .genetic-sequence-panel,
 .translation-panel,
-.protein-analysis {
+.protein-analysis,
+.expression-pathway-panel {
   min-width: 0;
   padding: 12px;
   background: var(--lab-surface);
@@ -331,6 +467,32 @@
 
 .genetic-sequence-panel {
   overflow-x: auto;
+}
+
+.sequence-coordinate-bar,
+.expression-pathway-heading,
+.phenotype-output-heading,
+.phenotype-output-range {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sequence-coordinate-bar > div > span,
+.sequence-coordinate-bar > strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--lab-ink-muted);
+  font-family: var(--lab-font-mono);
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.sequence-coordinate-bar > strong {
+  flex-shrink: 0;
+  margin-top: 0;
+  color: var(--lab-accent-deep);
 }
 
 .strand-row {
@@ -560,6 +722,155 @@
   font-size: 11px;
 }
 
+.expression-pathway-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.expression-pathway-heading h5 {
+  margin: 3px 0 0;
+  color: var(--lab-ink);
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.expression-pathway-heading > span {
+  color: var(--lab-ink-muted);
+  font-family: var(--lab-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.expression-flow {
+  padding: 10px;
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto minmax(120px, 1fr) auto minmax(120px, 1fr) auto minmax(120px, 1fr);
+  align-items: stretch;
+  gap: 7px;
+  overflow-x: auto;
+  background:
+    linear-gradient(var(--lab-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--lab-line) 1px, transparent 1px),
+    var(--lab-surface-sunken);
+  background-size: 18px 18px;
+  border: 1px solid var(--lab-line);
+  border-radius: var(--lab-radius-small);
+}
+
+.expression-node {
+  min-width: 120px;
+  padding: 9px;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  background: color-mix(in srgb, var(--lab-surface-raised) 92%, transparent);
+  border: 1px solid var(--lab-line-strong);
+  border-top: 3px solid var(--lab-accent);
+  border-radius: var(--lab-radius-small);
+}
+
+.expression-node.phenotype {
+  border-top-color: var(--lab-warning);
+}
+
+.expression-node span,
+.expression-node small {
+  color: var(--lab-ink-muted);
+  font-family: var(--lab-font-mono);
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.expression-node strong {
+  overflow: hidden;
+  color: var(--lab-ink);
+  font-family: var(--lab-font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.expression-node small {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.expression-arrow {
+  align-self: center;
+  color: var(--lab-accent-deep);
+  font-family: var(--lab-font-mono);
+  font-size: 16px;
+}
+
+.phenotype-output-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.phenotype-output-card {
+  min-width: 0;
+  padding: 10px;
+  display: grid;
+  gap: 7px;
+  background: var(--lab-surface-raised);
+  border: 1px solid var(--lab-line);
+  border-left: 3px solid var(--lab-accent);
+  border-radius: var(--lab-radius-small);
+}
+
+.phenotype-output-heading > span {
+  color: var(--lab-ink);
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: capitalize;
+}
+
+.phenotype-output-heading > strong {
+  color: var(--lab-accent-deep);
+  font-family: var(--lab-font-mono);
+  font-size: 11px;
+}
+
+.phenotype-output-range span,
+.phenotype-output-range strong {
+  color: var(--lab-ink-muted);
+  font-family: var(--lab-font-mono);
+  font-size: 8px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.output-meter i {
+  background: var(--lab-accent);
+}
+
+.output-weights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.output-weights span {
+  padding: 3px 5px;
+  color: var(--lab-ink-soft);
+  background: var(--lab-surface-sunken);
+  border: 1px solid var(--lab-line);
+  border-radius: 2px;
+  font-family: var(--lab-font-mono);
+  font-size: 8px;
+}
+
+.phenotype-output-card p {
+  margin: 0;
+  color: var(--lab-ink-muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
 .phenotype-expression-section {
   margin-top: 18px;
   padding-top: 18px;
@@ -632,6 +943,22 @@
     grid-template-columns: 1fr;
   }
 
+  .locus-measurements {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .locus-measurements > div:nth-child(3) {
+    border-right: 0;
+  }
+
+  .locus-measurements > div:nth-child(n + 4) {
+    border-top: 1px solid var(--lab-line);
+  }
+
+  .sequence-qc-grid {
+    grid-template-columns: 1fr;
+  }
+
   .genome-ring-wrap {
     min-height: 260px;
   }
@@ -680,6 +1007,26 @@
   }
 
   .protein-chemistry {
+    grid-template-columns: 1fr;
+  }
+
+  .expression-pathway-heading,
+  .sequence-coordinate-bar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .expression-flow {
+    grid-template-columns: 1fr;
+    overflow: visible;
+  }
+
+  .expression-arrow {
+    justify-self: center;
+    transform: rotate(90deg);
+  }
+
+  .phenotype-output-grid {
     grid-template-columns: 1fr;
   }
 

@@ -111,6 +111,62 @@ select:focus-visible {
   border-radius: var(--lab-radius-small);
 }
 
+.offline-controls {
+  min-height: 38px;
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--lab-surface-sunken);
+  border: 1px solid var(--lab-line);
+  border-radius: var(--lab-radius-small);
+}
+
+.offline-label {
+  padding-left: 4px;
+  color: var(--lab-ink-muted);
+  font-family: var(--lab-font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.offline-controls select {
+  height: 30px;
+  padding: 0 5px;
+  color: var(--lab-ink-soft);
+  background: var(--lab-surface-raised);
+  border: 1px solid var(--lab-line);
+  border-radius: 2px;
+  font-family: var(--lab-font-mono);
+  font-size: 9px;
+}
+
+.offline-step-button {
+  min-width: 52px;
+  height: 30px;
+  padding: 0 7px;
+  color: var(--lab-accent-deep);
+  background: var(--lab-accent-soft);
+  border: 1px solid var(--lab-accent);
+  border-radius: 2px;
+  font-family: var(--lab-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.offline-step-button:hover:not(:disabled) {
+  color: #ffffff;
+  background: var(--lab-accent);
+}
+
+.offline-step-button:disabled,
+.offline-controls select:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
 .control-button,
 .select-all-btn,
 .compare-button,
@@ -1816,6 +1872,7 @@ input[type="checkbox"] {
 
   .zoom-controls,
   .speed-controls,
+  .offline-controls,
   .reset-view-button,
   .restart-button {
     display: none;

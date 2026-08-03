@@ -195,7 +195,86 @@ export class TraitCalculator {
       expectedRange: [5, 20],
       weights: { length: 0.5 },
       description: 'Energy amount shared during cooperation - longer genes = more generous sharing'
+    },
+
+    adhesion: {
+      baseValue: 0,
+      formula: (protein) => Math.max(0, Math.min(
+        1,
+        protein.properties.polarRatio * 0.55 +
+        protein.properties.hydrophilicRatio * 0.25 +
+        protein.properties.negativeRatio * 0.2
+      )),
+      expectedRange: [0, 1],
+      weights: { polarRatio: 0.55, hydrophilicRatio: 0.25, negativeRatio: 0.2 },
+      description: 'Cell adhesion affinity - polar and charged proteins enable persistent bonds'
+    },
+
+    bondStrength: {
+      baseValue: 0,
+      formula: (protein) => Math.max(0, Math.min(
+        1,
+        protein.properties.hydrophobicRatio * 0.65 +
+        protein.properties.largeRatio * 0.35
+      )),
+      expectedRange: [0, 1],
+      weights: { hydrophobicRatio: 0.65, largeRatio: 0.35 },
+      description: 'Bond tensile strength - hydrophobic and large proteins stabilize attachments'
+    },
+
+    energyConductivity: {
+      baseValue: 0,
+      formula: (protein) => Math.max(0, Math.min(
+        1,
+        protein.properties.negativeRatio * 0.55 +
+        protein.properties.polarRatio * 0.45
+      )),
+      expectedRange: [0, 1],
+      weights: { negativeRatio: 0.55, polarRatio: 0.45 },
+      description: 'Energy conductivity - charged proteins transport resources through bonds'
+    },
+
+    bondCapacity: {
+      baseValue: 1,
+      formula: (protein) => Math.max(
+        1,
+        Math.min(5, 1 + Math.floor(protein.properties.length / 3))
+      ),
+      expectedRange: [1, 5],
+      weights: { length: 0.33 },
+      description: 'Maximum simultaneous bonds - longer adhesion proteins support more junctions'
+    },
+
+    bondMaintenance: {
+      baseValue: 0.04,
+      formula: (protein) => Math.min(
+        0.22,
+        0.04 +
+        protein.properties.hydrophilicRatio * 0.1 +
+        protein.properties.largeRatio * 0.08
+      ),
+      expectedRange: [0.04, 0.22],
+      weights: { hydrophilicRatio: 0.1, largeRatio: 0.08 },
+      description: 'Energy consumed per bond each second'
     }
+  };
+
+  static PROTEIN_TRAIT_MAP = {
+    size: ['size', 'mass'],
+    speed: ['maxSpeed', 'acceleration'],
+    defense: ['armor', 'toxicity'],
+    metabolism: ['metabolicRate', 'energyEfficiency'],
+    reproduction: ['reproductionCost', 'reproductionThreshold'],
+    sensory: ['visionRange', 'detectionRadius'],
+    aggression: ['aggression'],
+    cooperation: ['cooperativeness', 'cooperationAmount'],
+    adhesion: [
+      'adhesion',
+      'bondStrength',
+      'energyConductivity',
+      'bondCapacity',
+      'bondMaintenance'
+    ]
   };
 
   /**
@@ -321,6 +400,28 @@ export class TraitCalculator {
     };
   }
 
+  static calculateAdhesion(adhesionProtein) {
+    if (!adhesionProtein) {
+      return {
+        adhesion: TraitCalculator.TRAIT_RULES.adhesion.baseValue,
+        bondStrength: TraitCalculator.TRAIT_RULES.bondStrength.baseValue,
+        energyConductivity: TraitCalculator.TRAIT_RULES.energyConductivity.baseValue,
+        bondCapacity: TraitCalculator.TRAIT_RULES.bondCapacity.baseValue,
+        bondMaintenance: TraitCalculator.TRAIT_RULES.bondMaintenance.baseValue
+      };
+    }
+
+    return {
+      adhesion: TraitCalculator.TRAIT_RULES.adhesion.formula(adhesionProtein),
+      bondStrength: TraitCalculator.TRAIT_RULES.bondStrength.formula(adhesionProtein),
+      energyConductivity:
+        TraitCalculator.TRAIT_RULES.energyConductivity.formula(adhesionProtein),
+      bondCapacity: TraitCalculator.TRAIT_RULES.bondCapacity.formula(adhesionProtein),
+      bondMaintenance:
+        TraitCalculator.TRAIT_RULES.bondMaintenance.formula(adhesionProtein)
+    };
+  }
+
   /**
    * Get documentation for all traits
    */
@@ -367,19 +468,7 @@ export class TraitCalculator {
       traits: {}
     };
 
-    // Map protein names to their trait calculation methods
-    const proteinTraitMap = {
-      size: ['size', 'mass'],
-      speed: ['maxSpeed', 'acceleration'],
-      defense: ['armor', 'toxicity'],
-      metabolism: ['metabolicRate', 'energyEfficiency'],
-      reproduction: ['reproductionCost', 'reproductionThreshold'],
-      sensory: ['visionRange', 'detectionRadius'],
-      aggression: ['aggression'],
-      cooperation: ['cooperativeness', 'cooperationAmount']
-    };
-
-    const traits = proteinTraitMap[proteinName] || [];
+    const traits = TraitCalculator.getProteinTraitNames(proteinName);
     for (const traitName of traits) {
       const rule = TraitCalculator.TRAIT_RULES[traitName];
       if (rule) {
@@ -391,5 +480,9 @@ export class TraitCalculator {
     }
 
     return impact;
+  }
+
+  static getProteinTraitNames(proteinName) {
+    return TraitCalculator.PROTEIN_TRAIT_MAP[proteinName] || [];
   }
 }

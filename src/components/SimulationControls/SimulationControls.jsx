@@ -7,6 +7,9 @@ import { SettingsIcon } from '../shared/Icons/Icons';
 
 export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomIn, onZoomOut, onResetView, onOpenSettings }) {
   const [simulationSpeed, setSimulationSpeed] = useState(1);
+  const [stepDays, setStepDays] = useState(10);
+  const [fastForwardProgress, setFastForwardProgress] = useState(null);
+  const [, refreshControls] = useState(0);
   const [experimentId] = useState(() => {
     const dateCode = new Date().toISOString().slice(2, 10).replaceAll('-', '');
     return `EVO-${dateCode}`;
@@ -14,6 +17,7 @@ export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomI
 
   const handlePauseToggle = () => {
     world.togglePause();
+    refreshControls(value => value + 1);
   };
 
   const handleRestart = () => {
@@ -39,6 +43,20 @@ export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomI
       const newSpeed = speedLevels[currentIndex - 1];
       setSimulationSpeed(newSpeed);
       gameEngine.setSimulationSpeed(newSpeed);
+    }
+  };
+
+  const handleFastForward = async () => {
+    if (fastForwardProgress !== null) return;
+
+    setFastForwardProgress(0);
+    try {
+      await gameEngine.fastForwardDays(stepDays, {
+        onProgress: setFastForwardProgress
+      });
+    } finally {
+      setFastForwardProgress(null);
+      refreshControls(value => value + 1);
     }
   };
 
@@ -174,6 +192,30 @@ export function SimulationControls({ world, gameEngine, onRestart, zoom, onZoomI
               <polyline points="12 8 16 12 12 16" />
               <line x1="8" y1="12" x2="16" y2="12" />
             </svg>
+          </button>
+        </div>
+
+        <div className="offline-controls">
+          <span className="offline-label">Step</span>
+          <select
+            value={stepDays}
+            onChange={event => setStepDays(Number(event.target.value))}
+            disabled={fastForwardProgress !== null}
+            aria-label="Headless simulation duration"
+          >
+            <option value={1}>1 day</option>
+            <option value={10}>10 days</option>
+            <option value={100}>100 days</option>
+          </select>
+          <button
+            className="offline-step-button"
+            onClick={handleFastForward}
+            disabled={fastForwardProgress !== null}
+            title="Advance ecology without rendering intermediate frames"
+          >
+            {fastForwardProgress === null
+              ? `+${stepDays}d`
+              : `${Math.round(fastForwardProgress * 100)}%`}
           </button>
         </div>
       </div>

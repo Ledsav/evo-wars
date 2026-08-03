@@ -7,13 +7,18 @@ import { Protein } from './Protein.js';
  * Handles transcription and translation following central dogma
  */
 export class Gene {
-  constructor(dnaSequence, name = 'unnamed_gene') {
+  constructor(dnaSequence, name = 'unnamed_gene', options = {}) {
     if (typeof dnaSequence === 'string') {
       this.dna = new DNASequence(dnaSequence);
     } else {
       this.dna = dnaSequence;
     }
     this.name = name;
+    this.stability = Math.max(
+      0.08,
+      Math.min(0.92, options.stability ?? (0.42 + Math.random() * 0.3))
+    );
+    this.mutationCount = Math.max(0, options.mutationCount || 0);
   }
 
   /**
@@ -107,6 +112,49 @@ export class Gene {
    */
   get length() {
     return this.dna.length;
+  }
+
+  getSequenceInstability() {
+    const sequence = this.dna.toString();
+    if (!sequence.length) return 1;
+
+    const gcBases = sequence
+      .split('')
+      .filter(base => base === 'G' || base === 'C').length;
+    const gcDeviation = Math.abs(gcBases / sequence.length - 0.5) * 2;
+    let repeatedBases = 0;
+    for (let index = 1; index < sequence.length; index++) {
+      if (sequence[index] === sequence[index - 1]) repeatedBases++;
+    }
+
+    const codons = sequence.match(/.{3}/g) || [];
+    let repeatedCodons = 0;
+    for (let index = 1; index < codons.length; index++) {
+      if (codons[index] === codons[index - 1]) repeatedCodons++;
+    }
+
+    const lengthPressure = Math.min(1, sequence.length / 48);
+    const baseRepeatPressure = repeatedBases / Math.max(1, sequence.length - 1);
+    const codonRepeatPressure = repeatedCodons / Math.max(1, codons.length - 1);
+    const mutationHistoryPressure = Math.min(0.3, this.mutationCount * 0.025);
+
+    return Math.max(
+      0.08,
+      Math.min(
+        1,
+        0.18 +
+          lengthPressure * 0.24 +
+          gcDeviation * 0.16 +
+          baseRepeatPressure * 0.22 +
+          codonRepeatPressure * 0.2 +
+          mutationHistoryPressure
+      )
+    );
+  }
+
+  getMutationWeight() {
+    const repairEscape = Math.max(0.04, 1 - this.stability);
+    return this.getSequenceInstability() * repairEscape;
   }
 
   /**

@@ -2,6 +2,7 @@ import { Genome } from '../genetics/Genome.js';
 import { VisualPhenotype } from '../../rendering/visual/VisualPhenotype.js';
 import { PhenotypeComparator } from './PhenotypeComparator.js';
 import { TraitCalculator } from './TraitCalculator.js';
+import { applyCellSpecialization } from './CellSpecialization.js';
 
 /**
  * Organism - Base class for all living entities in the simulation
@@ -33,7 +34,8 @@ export class Organism {
     this.energy = 100;
     this.maxEnergy = 100;
     this.age = 0;
-    this.maxAge = 60000 + Math.random() * 30000; // 60-90 seconds lifespan
+    this.longevityVariation = 0.86 + Math.random() * 0.28;
+    this.maxAge = 60000;
     this.isAlive = true;
 
     // Parent tracking (for offspring protection)
@@ -47,13 +49,19 @@ export class Organism {
     this._founderPhenotype = null; // Will be set after expressing genome
     this._speciesInfo = null; // Cache for species name/emoji (set by World)
     this._provisionalStrainId = null;
+    this.cellRole = 'generalist';
+    this.cellRoleTarget = 'generalist';
+    this.roleExpression = 0;
+    this.roleTargetSince = 0;
+    this._roleExpressionBucket = -1;
 
     // Express genome to set phenotype
     this.expressGenome();
+    this.maxAge = this.calculateMaximumAge();
 
     // If this is a founder, cache its phenotype for comparison
     if (this.speciesFounderId === this.id) {
-      this._founderPhenotype = this.phenotype;
+      this._founderPhenotype = this.basePhenotype;
     }
   }
 
@@ -63,18 +71,75 @@ export class Organism {
   expressGenome() {
     const proteins = this.genome.expressAllGenes();
 
-    // Calculate phenotype from expressed proteins
-    this.phenotype = this.calculatePhenotype(proteins);
+    this.basePhenotype = this.calculatePhenotype(proteins);
+    this.applyCellRoleExpression(true);
+  }
+
+  setCellRoleTarget(role, currentTime = 0) {
+    const nextRole = role || 'generalist';
+    if (this.cellRoleTarget === nextRole) return;
+    this.cellRoleTarget = nextRole;
+    this.roleTargetSince = currentTime;
+  }
+
+  updateCellDifferentiation(deltaSeconds) {
+    if (this.cellRole === this.cellRoleTarget) {
+      if (this.cellRole === 'generalist') {
+        this.roleExpression = 0;
+      } else {
+        this.roleExpression = Math.min(1, this.roleExpression + deltaSeconds * 0.12);
+      }
+    } else if (this.roleExpression > 0) {
+      this.roleExpression = Math.max(0, this.roleExpression - deltaSeconds * 0.08);
+    } else {
+      this.cellRole = this.cellRoleTarget;
+    }
+
+    this.applyCellRoleExpression();
+  }
+
+  applyCellRoleExpression(force = false) {
+    if (!this.basePhenotype) return;
+    const expressionBucket = Math.round(this.roleExpression * 20);
+    if (!force && expressionBucket === this._roleExpressionBucket) return;
+
+    this._roleExpressionBucket = expressionBucket;
+    this.phenotype = applyCellSpecialization(
+      this.basePhenotype,
+      this.cellRole,
+      this.roleExpression
+    );
+  }
+
+  getExpressedCellRole() {
+    return this.cellRole !== 'generalist' && this.roleExpression >= 0.25
+      ? this.cellRole
+      : 'generalist';
+  }
+
+  calculateMaximumAge() {
+    const size = this.basePhenotype?.size || this.phenotype.size || 8;
+    const metabolicRate =
+      this.basePhenotype?.metabolicRate ||
+      this.phenotype.metabolicRate ||
+      0.5;
+    const sizeProgress = Math.max(0, Math.min(1, (size - 8) / 12));
+    const sizeAdjustedLife = 55000 + sizeProgress * 90000;
+    const metabolicPenalty = 1 + Math.max(0, metabolicRate - 0.5) * 0.18;
+
+    return sizeAdjustedLife * this.longevityVariation / metabolicPenalty;
   }
 
   refreshVisualPhenotype() {
     const proteins = this.genome.expressAllGenes();
-    this.phenotype.visual = VisualPhenotype.create(
+    const visual = VisualPhenotype.create(
       this.genome,
       proteins,
-      this.phenotype,
+      this.basePhenotype || this.phenotype,
       this.speciesFounderId
     );
+    if (this.basePhenotype) this.basePhenotype.visual = visual;
+    this.phenotype.visual = visual;
   }
 
   /**
@@ -153,6 +218,9 @@ export class Organism {
     const behavior = TraitCalculator.calculateBehavior(proteins.aggression, proteins.cooperation);
     Object.assign(phenotype, behavior);
 
+    const adhesion = TraitCalculator.calculateAdhesion(proteins.adhesion);
+    Object.assign(phenotype, adhesion);
+
     // Pigmentation (if gene exists)
     if (proteins.pigmentation) {
       const pigmentProtein = proteins.pigmentation;
@@ -218,6 +286,7 @@ export class Organism {
 
     // Convert deltaTime from ms to seconds for energy calculation
     const deltaSeconds = deltaTime / 1000;
+    this.updateCellDifferentiation(deltaSeconds);
 
     // Consume energy based on metabolism (increased from 0.05 to 0.15 - 3x faster death)
     const energyCost = this.phenotype.metabolicRate * deltaSeconds *
@@ -352,43 +421,42 @@ export class Organism {
     // Track if mutation occurred
     let mutationOccurred = false;
 
-    // Apply random mutations based on mutation rate
+    // Apply mutations using each gene's inherited repair stability
     if (Math.random() < mutationRate) {
-      const geneNames = childGenome.getGeneNames();
-      const randomGene = geneNames[Math.floor(Math.random() * geneNames.length)];
-      const gene = childGenome.getGene(randomGene);
-      const sequence = gene.dna.toString();
-
-      // Choose random mutation type (favor smaller mutations)
-      const mutationTypes = ['point', 'point', 'point', 'insertion', 'deletion']; // Weighted toward point mutations
-      const mutationType = mutationTypes[Math.floor(Math.random() * mutationTypes.length)];
-      const randomPosition = Math.floor(Math.random() * sequence.length);
+      const mutationPlan = childGenome.createMutationPlan();
 
       try {
-        const mutationResult = childGenome.mutateGene(
-          randomGene,
-          mutationType,
-          randomPosition
-        );
-        mutationOccurred = mutationResult.success;
+        if (mutationPlan) {
+          const mutationResult = childGenome.mutateGene(
+            mutationPlan.geneName,
+            mutationPlan.mutationType,
+            mutationPlan.position,
+            mutationPlan.extraParams
+          );
+          mutationOccurred = mutationResult.success;
+          if (mutationOccurred) childGenome.maybeReallocateStability();
+        }
       } catch (error) {
         // Mutation failed, continue without it
         console.log('Mutation failed during reproduction:', error.message);
       }
     }
 
-    // Create offspring near parent
-    const offsetX = (Math.random() - 0.5) * 30;
-    const offsetY = (Math.random() - 0.5) * 30;
+    // Create offspring at the parent membrane so cytokinesis can retain a bond
+    const divisionAngle = Math.random() * Math.PI * 2;
 
     // Initially inherit parent's species founder
     const offspring = new Organism(
-      this.x + offsetX,
-      this.y + offsetY,
+      this.x,
+      this.y,
       childGenome,
       this.id,
       this.speciesFounderId
     );
+    const membraneDistance =
+      (this.phenotype.size + offspring.phenotype.size) * 1.04;
+    offspring.x = this.x + Math.cos(divisionAngle) * membraneDistance;
+    offspring.y = this.y + Math.sin(divisionAngle) * membraneDistance;
 
     // Give some initial energy
     offspring.energy = this.phenotype.reproductionCost * 0.3;
@@ -539,7 +607,7 @@ export class Organism {
     this.speciesFounderId = this.id;
     this._cachedSpeciesId = null; // Clear cache
     this.refreshVisualPhenotype();
-    this._founderPhenotype = this.phenotype; // Cache phenotype for descendants
+    this._founderPhenotype = this.basePhenotype; // Cache phenotype for descendants
 
     // Notify world of speciation event
     if (world && world.onSpeciationEvent) {

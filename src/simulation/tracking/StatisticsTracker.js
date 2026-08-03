@@ -22,6 +22,11 @@ export class StatisticsTracker {
       combatKills: [], // Cumulative combat kills over time
       cooperationEvents: [], // Cumulative cooperation events over time
       averageGenomicDivergence: [],
+      colonyCount: [],
+      bondCount: [],
+      matureBondCount: [],
+      largestColony: [],
+      bondRuptures: [],
     };
 
     // Cumulative counters (not reset between samples)
@@ -56,11 +61,11 @@ export class StatisticsTracker {
   /**
    * Collect statistics from the world
    */
-  collectStats(world) {
+  collectStats(world, force = false) {
     const currentTime = performance.now();
 
     // Check if we should sample at this time
-    if (!this.shouldSample(currentTime)) {
+    if (!force && !this.shouldSample(currentTime)) {
       return;
     }
 
@@ -99,6 +104,13 @@ export class StatisticsTracker {
     const averageGenomicDivergence = aliveCount > 0
       ? (totalGenomicDivergence / aliveCount) * 100
       : 0;
+    const colonyStats = world.colonyManager?.getStats?.() || {
+      colonyCount: 0,
+      bondCount: 0,
+      matureBondCount: 0,
+      largestColony: 0,
+      ruptureCount: 0
+    };
 
     // Update cumulative combat kills from world
     if (world.combatKills !== undefined) {
@@ -120,6 +132,11 @@ export class StatisticsTracker {
     this.data.combatKills.push(this.totalCombatKills);
     this.data.cooperationEvents.push(this.totalCooperationEvents);
     this.data.averageGenomicDivergence.push(averageGenomicDivergence);
+    this.data.colonyCount.push(colonyStats.colonyCount);
+    this.data.bondCount.push(colonyStats.bondCount);
+    this.data.matureBondCount.push(colonyStats.matureBondCount);
+    this.data.largestColony.push(colonyStats.largestColony);
+    this.data.bondRuptures.push(colonyStats.ruptureCount);
 
     // Limit data points to prevent memory issues
     if (this.data.time.length > this.maxDataPoints) {
@@ -153,6 +170,11 @@ export class StatisticsTracker {
         combatKills: 0,
         cooperationEvents: 0,
         averageGenomicDivergence: 0,
+        colonyCount: 0,
+        bondCount: 0,
+        matureBondCount: 0,
+        largestColony: 0,
+        bondRuptures: 0,
       };
     }
 
@@ -167,6 +189,11 @@ export class StatisticsTracker {
       cooperationEvents: this.data.cooperationEvents[len - 1],
       averageGenomicDivergence:
         this.data.averageGenomicDivergence[len - 1],
+      colonyCount: this.data.colonyCount[len - 1],
+      bondCount: this.data.bondCount[len - 1],
+      matureBondCount: this.data.matureBondCount[len - 1],
+      largestColony: this.data.largestColony[len - 1],
+      bondRuptures: this.data.bondRuptures[len - 1],
     };
   }
 

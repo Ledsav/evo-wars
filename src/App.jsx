@@ -89,12 +89,13 @@ function App() {
     world.spawnInitialPopulation();
 
 
-    gameEngine.setUpdateCallback(() => {
-      updateCounterRef.current++;
+    gameEngine.setUpdateCallback((deltaTime, options = {}) => {
+      if (deltaTime >= 0) updateCounterRef.current++;
 
-
-
-      if (updateCounterRef.current - lastUIUpdateRef.current >= 30) {
+      if (
+        options.forceUI ||
+        updateCounterRef.current - lastUIUpdateRef.current >= 30
+      ) {
         lastUIUpdateRef.current = updateCounterRef.current;
         forceUpdate({});
       }

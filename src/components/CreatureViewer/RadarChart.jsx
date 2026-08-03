@@ -116,6 +116,12 @@ export function RadarChart({ organism }) {
       color: '#688469'
     },
     {
+      name: 'Adhesion',
+      key: 'adhesion',
+      normalize: (val) => (val || 0) * 100,
+      color: '#4f8177'
+    },
+    {
       name: 'Reproduction',
       key: 'reproductionThreshold',
       normalize: (val) => Math.min(100, Math.max(0, ((val - 70) / 30) * 100)),

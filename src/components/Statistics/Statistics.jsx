@@ -237,6 +237,14 @@ export function Statistics({ statsTracker, onUpdateSampleFrequency }) {
     },
   ];
 
+  const colonyLines = [
+    { key: 'colonyCount', label: 'Colonies', color: '#557f79', enabled: true },
+    { key: 'bondCount', label: 'Cell Bonds', color: '#756c83', enabled: true },
+    { key: 'matureBondCount', label: 'Mature Bonds', color: '#4f8177', enabled: true },
+    { key: 'largestColony', label: 'Largest Colony', color: '#b77a2b', enabled: true },
+    { key: 'bondRuptures', label: 'Bond Ruptures', color: '#a54a3f', enabled: true },
+  ];
+
   return (
     <div className="statistics">
       <div className="panel-title">
@@ -269,6 +277,26 @@ export function Statistics({ statsTracker, onUpdateSampleFrequency }) {
         <div className="stat-card">
           <div className="stat-label">Cooperation Events</div>
           <div className="stat-value">{latest.cooperationEvents}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Colonies</div>
+          <div className="stat-value">{latest.colonyCount}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Cell Bonds</div>
+          <div className="stat-value">{latest.bondCount}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Mature Bonds</div>
+          <div className="stat-value">{latest.matureBondCount}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Largest Colony</div>
+          <div className="stat-value">{latest.largestColony}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Bond Ruptures</div>
+          <div className="stat-value">{latest.bondRuptures}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Avg Genetic Divergence</div>
@@ -388,6 +416,13 @@ export function Statistics({ statsTracker, onUpdateSampleFrequency }) {
             width={450}
             height={220}
             title="Average Genetic Divergence Over Time"
+          />
+          <LineChart
+            data={data}
+            lines={colonyLines}
+            width={450}
+            height={220}
+            title="Multicellular Organization Over Time"
           />
         </div>
       ) : (

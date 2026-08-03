@@ -44,12 +44,17 @@ export class GenealogyTracker {
   /**
    * Species Node - represents a species in the family tree
    */
-  createSpeciesNode(speciesId, parentSpeciesId = null, representative = null) {
+  createSpeciesNode(
+    speciesId,
+    parentSpeciesId = null,
+    representative = null,
+    firstSeen = 0
+  ) {
     return {
       id: speciesId,
       parentId: parentSpeciesId,
       children: new Set(),
-      firstSeen: Date.now(),
+      firstSeen,
       extinct: false,
       extinctTime: null,
       currentPopulation: 0,
@@ -58,6 +63,12 @@ export class GenealogyTracker {
       // Visual properties for thumbnail
       color: representative?.phenotype?.color || { h: 180, s: 60, l: 50 },
       phenotype: representative?.phenotype || null,
+      cellRoles: { generalist: 0 },
+      specializedPopulation: 0,
+      multicellularPopulation: 0,
+      colonyCount: 0,
+      specializationFraction: 0,
+      multicellularFraction: 0,
     };
   }
 
@@ -80,11 +91,11 @@ export class GenealogyTracker {
    * Update species information based on current world state
    * This is called periodically (not every frame) for performance
    */
-  update(world) {
+  update(world, force = false) {
     const currentTime = Date.now();
 
     // Throttle updates for performance
-    if (currentTime - this.lastCheckTime < this.checkInterval) {
+    if (!force && currentTime - this.lastCheckTime < this.checkInterval) {
       return;
     }
 
@@ -96,10 +107,28 @@ export class GenealogyTracker {
     // Count populations per species
     const populationCounts = new Map();
     const speciesRepresentatives = new Map();
+    const speciesOrganization = new Map();
 
     for (const org of aliveOrganisms) {
       const speciesId = org.getSpeciesId();
       populationCounts.set(speciesId, (populationCounts.get(speciesId) || 0) + 1);
+      if (!speciesOrganization.has(speciesId)) {
+        speciesOrganization.set(speciesId, {
+          cellRoles: {},
+          specializedPopulation: 0,
+          multicellularPopulation: 0,
+          colonyIds: new Set()
+        });
+      }
+      const organization = speciesOrganization.get(speciesId);
+      const cellRole = org.getExpressedCellRole?.() || 'generalist';
+      organization.cellRoles[cellRole] =
+        (organization.cellRoles[cellRole] || 0) + 1;
+      if (cellRole !== 'generalist') organization.specializedPopulation++;
+      if (org._colonyId) {
+        organization.multicellularPopulation++;
+        organization.colonyIds.add(org._colonyId);
+      }
 
       // Store first organism as representative
       if (!speciesRepresentatives.has(speciesId)) {
@@ -117,6 +146,19 @@ export class GenealogyTracker {
       const currentPop = populationCounts.get(speciesId) || 0;
       node.currentPopulation = currentPop;
       node.maxPopulation = Math.max(node.maxPopulation, currentPop);
+      const organization = speciesOrganization.get(speciesId);
+      if (organization) {
+        node.cellRoles = organization.cellRoles;
+        node.specializedPopulation = organization.specializedPopulation;
+        node.multicellularPopulation = organization.multicellularPopulation;
+        node.colonyCount = organization.colonyIds.size;
+        node.specializationFraction = currentPop > 0
+          ? organization.specializedPopulation / currentPop
+          : 0;
+        node.multicellularFraction = currentPop > 0
+          ? organization.multicellularPopulation / currentPop
+          : 0;
+      }
 
       // Update representative if available
       if (speciesRepresentatives.has(speciesId)) {
@@ -128,7 +170,7 @@ export class GenealogyTracker {
       // Mark as extinct if population drops to 0
       if (currentPop === 0 && !node.extinct) {
         node.extinct = true;
-        node.extinctTime = currentTime;
+        node.extinctTime = world.time;
         this.emit('species-extinct', { speciesId: node.id, node });
       }
     }
@@ -159,7 +201,12 @@ export class GenealogyTracker {
     }
 
     // Create new species node
-    const node = this.createSpeciesNode(speciesId, parentSpeciesId, organism);
+    const node = this.createSpeciesNode(
+      speciesId,
+      parentSpeciesId,
+      organism,
+      world.time
+    );
     this.speciesNodes.set(speciesId, node);
 
     // Add to parent's children
@@ -206,6 +253,12 @@ export class GenealogyTracker {
     const all = this.getAllSpecies();
     const alive = all.filter(node => !node.extinct);
     const extinct = all.filter(node => node.extinct);
+    const multicellularSpecies = alive.filter(
+      node => node.multicellularPopulation > 0
+    ).length;
+    const specializedSpecies = alive.filter(
+      node => node.specializedPopulation > 0
+    ).length;
 
     return {
       totalSpecies: all.length,
@@ -213,6 +266,8 @@ export class GenealogyTracker {
       extinctSpecies: extinct.length,
       rootSpecies: this.rootSpecies.size,
       maxDepth: this.calculateMaxDepth(),
+      multicellularSpecies,
+      specializedSpecies
     };
   }
 
@@ -326,6 +381,12 @@ export class GenealogyTracker {
           representative: extinctNodes[0]?.representative,
           color: { h: 0, s: 0, l: 40 },
           phenotype: extinctNodes[0]?.phenotype,
+          cellRoles: {},
+          specializedPopulation: 0,
+          multicellularPopulation: 0,
+          colonyCount: 0,
+          specializationFraction: 0,
+          multicellularFraction: 0
         };
         collapsedLevel.push(groupNode);
       }
