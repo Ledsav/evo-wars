@@ -15,21 +15,35 @@ An interactive evolution simulation where organisms evolve through natural selec
 
 ## 🌐 Live Demo
 
-**🚀 [Play Live Demo](https://Ledsav.github.io/evo-wars/)**
+**🚀 [Play Live Demo](https://www.albertovaldesrey.com/evo-wars/)** (`ledsav.github.io/evo-wars/` redirects there)
 
 ## 🎮 Quick Start
+
+### Prerequisites
+
+- Node.js 20.19+ or 22.12+ (Vite 7; CI builds with Node 20)
+- Python 3.10+ only for the optional [`analysis/`](./analysis/README.md) notebooks
 
 ### Development
 
 ```powershell
+git clone https://github.com/Ledsav/evo-wars.git
+cd evo-wars
+
 # Install dependencies
-npm install
+npm ci
 
 # Start development server
 npm run dev
+
+# Lint
+npm run lint
 ```
 
-Visit `http://localhost:5173`
+Visit `http://localhost:5173/evo-wars/`
+
+In VS Code, **Terminal → Run Task… → Setup (fresh clone)** checks the Node version, runs `npm ci`, lints and builds.
+**Dev** starts the dev server, and **Analysis: set up venv** creates `analysis/venv` for the notebooks.
 
 ### Production Build
 
@@ -56,9 +70,10 @@ This project is configured for automatic deployment to GitHub Pages.
    - Go to Repository **Settings** → **Pages**
    - Under **Source**, select **GitHub Actions**
    
-3. **Done!** Your site deploys automatically on every push.
+3. **Done!** `.github/workflows/deploy.yml` builds with `npm ci` + `npm run build` and deploys `dist/` on every
+   push to `master` (or manually from the Actions tab). There is no local deploy script.
 
-See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed deployment instructions.
+See [DEPLOYMENT.md](./docs/DEPLOYMENT.md) for detailed deployment instructions.
 
 ## 📁 Project Structure
 
@@ -74,6 +89,7 @@ evo-wars/
 │   ├── engine/          # Game engine & performance
 │   ├── simulation/      # AI, species, world logic
 │   └── rendering/       # Canvas rendering
+├── analysis/           # Optional Python/Jupyter toolkit for simulation statistics
 ├── docs/               # Documentation
 └── public/            # Static assets
 ```
@@ -89,7 +105,8 @@ evo-wars/
 ## 🛠️ Tech Stack
 
 - **React 19** - UI framework
-- **Vite** - Build tool & dev server
+- **Vite 7** - Build tool & dev server
+- **ESLint 9** - Linting (`npm run lint`)
 - **Canvas API** - High-performance rendering
 - **GitHub Pages** - Deployment
 
@@ -97,8 +114,8 @@ evo-wars/
 
 - [Species System](./docs/SPECIES_SYSTEM.md) - How species form and evolve
 - [Trait System](./docs/TRAIT_SYSTEM.md) - Genetic traits and phenotypes
-- [Deployment Guide](./DEPLOYMENT.md) - Complete deployment instructions
-- [Mobile Support](./MOBILE.md) - Mobile optimization and touch gestures
+- [Deployment Guide](./docs/DEPLOYMENT.md) - Complete deployment instructions
+- [Mobile Support](./docs/MOBILE.md) - Mobile optimization and touch gestures
 
 ## 🎮 Controls
 
@@ -160,10 +177,6 @@ evo-wars/
   - PWA-ready with app-like experience
   - Status bar integration on iOS
   - Landscape orientation support
-
-## 📝 License
-
-MIT License - Feel free to use and modify!
 
 ## 🤝 Contributing
 

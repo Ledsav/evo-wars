@@ -20,27 +20,13 @@ This project is configured for automatic deployment to GitHub Pages.
    - The site will automatically deploy on every push to master
 
 3. **Access your live site:**
-   - Your site will be available at: `https://Ledsav.github.io/evo-wars/`
+   - Your site will be available at: `https://www.albertovaldesrey.com/evo-wars/` (`https://ledsav.github.io/evo-wars/` redirects there, because the GitHub account has a custom domain)
    - Check the **Actions** tab to monitor deployment progress
 
-### Method 2: Manual Deployment with gh-pages
+### Manual redeploy
 
-If you prefer manual deployment:
-
-1. **Install gh-pages:**
-   ```powershell
-   npm install --save-dev gh-pages
-   ```
-
-2. **Deploy:**
-   ```powershell
-   npm run deploy
-   ```
-
-   This will:
-   - Build your project
-   - Push the `dist` folder to the `gh-pages` branch
-   - Make it live at `https://Ledsav.github.io/evo-wars/`
+There is no local deploy script (the old `gh-pages` one was removed). To redeploy without pushing, open
+**Actions → Deploy to GitHub Pages → Run workflow**.
 
 ## Configuration
 
@@ -91,6 +77,6 @@ This will serve the built files at `http://localhost:4173` with the correct base
 ## Live URL
 
 Once deployed, your simulation will be available at:
-**https://Ledsav.github.io/evo-wars/**
+**https://www.albertovaldesrey.com/evo-wars/**
 
 Enjoy evolving! 🧬✨

@@ -47,7 +47,12 @@ This will open Jupyter in your browser. Navigate to `notebooks/starter_analysis.
 
 To analyze your simulation data, you need to export it from the web application:
 
-### Method 1: Manual Export (Current)
+> **Stale:** nothing in the app writes `evoWarsStatistics` to `localStorage` any more, so the console snippet in
+> Method 1 returns `null`. Use the **Export Data: JSON** button in the Statistics panel instead: it downloads
+> `evo-wars-stats-<timestamp>.json` with the `{metadata, data}` shape `scripts/data_loader.py` reads. Save it to
+> `analysis/data/`. Method 1 and 2 below are kept for history and need a rewrite.
+
+### Method 1: Manual Export (outdated)
 
 1. Run your Evo Wars simulation in the browser
 2. Open browser developer console (F12)
